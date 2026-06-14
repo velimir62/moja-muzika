@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veljo Radio</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: #eee;
+            padding: 20px;
+        }
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: rgba(0,0,0,0.4);
+            border-radius: 32px;
+            padding: 24px;
+            backdrop-filter: blur(10px);
+        }
+        h1 { text-align: center; margin-bottom: 20px; font-weight: 600; }
+        .radio-btn {
+            display: block;
+            width: 100%;
+            background: #1db954;
+            border: none;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            padding: 14px;
+            border-radius: 50px;
+            cursor: pointer;
+            text-align: center;
+            margin-bottom: 15px;
+            transition: 0.2s;
+        }
+        .radio-btn:hover { background: #1ed760; transform: scale(1.02); }
+        .status {
+            text-align: center;
+            font-size: 14px;
+            color: #ccc;
+            margin-bottom: 20px;
+        }
+        .playlist {
+            max-height: 500px;
+            overflow-y: auto;
+            border-top: 1px solid #333;
+            margin-top: 10px;
+        }
+        .song-btn {
+            display: block;
+            width: 100%;
+            text-align: left;
+            background: #2a2a4a;
+            border: none;
+            color: #eee;
+            padding: 10px 15px;
+            margin: 6px 0;
+            border-radius: 40px;
+            cursor: pointer;
+            font-size: 15px;
+            transition: 0.1s;
+        }
+        .song-btn:hover { background: #e94560; transform: translateX(5px); }
+        audio { width: 100%; margin-top: 15px; display: none; }
+        footer { text-align: center; margin-top: 20px; font-size: 12px; opacity: 0.7; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🎵 Veljo Radio</h1>
+    <button id="radioBtn" class="radio-btn">▶️ POKRENI LIVE RADIO</button>
+    <div id="radioStatus" class="status">⏳ Učitavam pjesme...</div>
+    <div id="songListContainer" class="playlist"></div>
+    <audio id="globalPlayer" controls style="display: none;"></audio>
+    <footer>Pjesme se puštaju redom. Klik na pjesmu – pojedinačna reprodukcija.</footer>
+</div>
+
+<script>
+    // ----- LISTA SVIH MP3 FAJLOVA (iz vašeg repozitorijuma) -----
+    const songsList = [
+        { display: "A", file: "A.mp3" },
+        { display: "bacon abd eggs", file: "bacon abd eggs.mp3" },
+        { display: "bisa", file: "bisa.mp3" },
+        { display: "bisa1", file: "bisa1.mp3" },
+        { display: "boki10", file: "boki10.mp3" },
+        { display: "boki11", file: "boki11.mp3" },
+        { display: "Braco", file: "Braco.mp3" },
+        { display: "brane", file: "brane.mp3" },
+        { display: "C", file: "C.mp3" },
+        { display: "Četkica i boja", file: "Četkica i boja.mp3" },
+        { display: "combine", file: "combine.mp3" },
+        { display: "D", file: "D.mp3" },
+        { display: "dame", file: "dame.mp3" },
+        { display: "date2", file: "date2.mp3" },
+        { display: "Donkey Opera", file: "Donkey Opera.mp3" },
+        { display: "Dugo smo, Jaco, zajedno sretni", file: "Dugo smo, Jaco, zajedno sretni,.mp3" },
+        { display: "Dva svedoka imamo Milenko i ja", file: "Dva svedoka imamo Milenko i ja.mp3" },
+        { display: "E", file: "E.mp3" },
+        { display: "evo me stigoh", file: "evo me stigoh.mp3" },
+        { display: "evo me stigoh (1)", file: "evo me stigoh (1).mp3" },
+        { display: "Fantastiko Trio", file: "Fantastiko Trio.mp3" },
+        { display: "G", file: "G.mp3" },
+        { display: "gesara", file: "gesara.mp3" },
+        { display: "godisnjica", file: "godisnjica.mp3" },
+        { display: "James party", file: "James party.mp3" },
+        { display: "jjn", file: "jjn.mp3" },
+        { display: "Kada te napusti životna ljubav", file: "Kada te napusti životna ljubav.mp3" },
+        { display: "kenu moj", file: "kenu moj.mp3" },
+        { display: "kokotile10", file: "kokotile10.mp3" },
+        { display: "kokotilo", file: "kokotilo.mp3" },
+        { display: "lj", file: "lj.mp3" },
+        { display: "mali kokotilo", file: "mali kokotilo.mp3" },
+        { display: "mica1", file: "mica1.mp3" },
+        { display: "miso", file: "miso.mp3" },
+        { display: "moja luka", file: "moja luka.mp3" },
+        { display: "moja nafaka", file: "moja nafaka.mp3" },
+        { display: "moja slava", file: "moja slava.mp3" },
+        { display: "Najgore je kad ti dodje", file: "Najgore je kad ti dodje.mp3" },
+        { display: "Nata", file: "Nata.mp3" },
+        { display: "Nebo Sivo Kiša", file: "Nebo Sivo Kiša.mp3" },
+        { display: "Od Teherana do Tel Aviva", file: "Od Teherana do Tel Aviva, (1).mp3" },
+        { display: "Pemzija", file: "Pemzija.mp3" },
+        { display: "pero djavole", file: "pero djavole.mp3" },
+        { display: "petrM", file: "petrM.mp3" },
+        { display: "pjevac", file: "pjevac.mp3" },
+        { display: "poslednja luka", file: "poslednja luka.mp3" },
+        { display: "poslednja luka (1)", file: "poslednja luka (1).mp3" },
+        { display: "povratak", file: "povratak.mp3" },
+        { display: "povratak (1)", file: "povratak (1).mp3" },
+        { display: "Preko bare iza mene", file: "Preko bare iza mene.mp3" },
+        { display: "ranka", file: "ranka.mp3" },
+        { display: "return", file: "return.mp3" },
+        { display: "S", file: "S.mp3" },
+        { display: "Sa Korduna, rodne grude", file: "Sa Korduna, rodne grude,.mp3" },
+        { display: "sanja", file: "sanja.mp3" },
+        { display: "Sarma Bez Suza", file: "Sarma Bez Suza.mp3" },
+        { display: "schools", file: "schools.mp3" },
+        { display: "sipovo", file: "sipovo.mp3" },
+        { display: "slanina", file: "slanina.mp3" },
+        { display: "slanina1", file: "slanina1.mp3" },
+        { display: "sretno", file: "sretno.mp3" },
+        { display: "Svake noci kada legnem (1)", file: "Svake noci kada legnem (1).mp3" },
+        { display: "Takav mi dolazi dan", file: "Takav mi dolazi dan.mp3" },
+        { display: "tuba", file: "tuba.mp3" },
+        { display: "tuba1", file: "tuba1.mp3" },
+        { display: "U Banjaluci dan miriše na kavu", file: "U Banjaluci dan miriše na kavu,.mp3" },
+        { display: "U Mačkovcu", file: "U Mačkovcu.mp3" },
+        { display: "U Mačkovcu (1)", file: "U Mačkovcu (1).mp3" },
+        { display: "usipovu", file: "usipovu.mp3" },
+        { display: "Veljo Pogleda", file: "Veljo Pogleda.mp3" },
+        { display: "Vrbasov Glas", file: "Vrbasov Glas.mp3" },
+        { display: "Vučko Kita", file: "Vučko Kita.mp3" },
+        { display: "Z", file: "Z.mp3" },
+        { display: "Zeleni Brijeg", file: "Zeleni Brijeg.mp3" },
+        { display: "znakovi", file: "znakovi.mp3" },
+        { display: "zubar", file: "zubar.mp3" },
+        { display: "zz", file: "zz.mp3" },
+        { display: "zzs", file: "zzs.mp3" },
+        { display: "БАЛАДА О МАГАРЦУ", file: "БАЛАДА О МАГАРЦУ.mp3" },
+        { display: "вратила се рода", file: "вратила се рода.mp3" },
+        { display: "Гламочна бури", file: "Гламочна бури.mp3" },
+        { display: "ђуличан", file: "ђуличан.mp3" },
+        { display: "Завуче им Вучко", file: "Завуче им Вучко.mp3" },
+        { display: "кишни дани", file: "кишни дани.mp3" },
+        { display: "Крај ријеке Врбас родио се син", file: "Крај ријеке Врбас родио се син.mp3" },
+        { display: "Магарац Самара", file: "Магарац Самара.mp3" },
+        { display: "На последњој степеници", file: "На последњој степеници.mp3" },
+        { display: "Није било Торте", file: "Није било Торте.mp3" },
+        { display: "ово сада живи са мном", file: "ово сада живи са мном.mp3" },
+        { display: "Ој, Цане Здравкићу, срећан ти рођендан", file: "Ој, Цане Здравкићу, срећан ти рођендан,.mp3" },
+        { display: "Пегла У Халифаксу", file: "Пегла У Халифаксу.mp3" },
+        { display: "Планови дјевојчице Јасминке (1)", file: "Планови дјевојчице Јасминке (1).mp3" },
+        { display: "поглед у даљине", file: "поглед у даљине.mp3" },
+        { display: "Подеране Гаће Купаће", file: "Подеране Гаће Купаће.mp3" },
+        { display: "Распукла Палета", file: "Распукла Палета.mp3" },
+        { display: "систем ме дави", file: "систем ме дави.mp3" },
+        { display: "Т", file: "Т.mp3" },
+        { display: "Ту је сада једна екипа", file: "Ту је сада једна екипа,.mp3" },
+        { display: "Ту је сада једна екипа (1)", file: "Ту је сада једна екипа, (1).mp3" },
+        { display: "шкорпија", file: "шкорпија.mp3" }
+    ];
+
+    const fullSongs = songsList.map(song => ({ display: song.display, url: song.file }));
+    const radioBtn = document.getElementById('radioBtn');
+    const radioStatus = document.getElementById('radioStatus');
+    const container = document.getElementById('songListContainer');
+    const player = document.getElementById('globalPlayer');
+    let radioActive = false;
+    let currentIndex = 0;
+
+    function renderButtons() {
+        container.innerHTML = '';
+        fullSongs.forEach((song, idx) => {
+            const btn = document.createElement('button');
+            btn.textContent = `🎵 ${song.display}`;
+            btn.className = 'song-btn';
+            btn.onclick = () => {
+                if (radioActive) stopRadio();
+                player.src = song.url;
+                player.play();
+                radioStatus.innerHTML = `🎵 Svira: ${song.display}`;
+            };
+            container.appendChild(btn);
+        });
+        radioStatus.innerHTML = `✅ Učitano ${fullSongs.length} pjesama. Pritisni dugme za radio.`;
+    }
+
+    function stopRadio() {
+        radioActive = false;
+        radioBtn.innerHTML = '▶️ POKRENI LIVE RADIO';
+        radioStatus.innerHTML = '⏸️ Radio pauziran.';
+        player.pause();
+    }
+
+    function playNext() {
+        if (!radioActive) return;
+        currentIndex++;
+        if (currentIndex >= fullSongs.length) {
+            radioActive = false;
+            radioBtn.innerHTML = '▶️ POKRENI LIVE RADIO';
+            radioStatus.innerHTML = '🏁 Kraj plejliste. Pritisni dugme za ponovni početak.';
+            player.pause();
+            return;
+        }
+        const next = fullSongs[currentIndex];
+        player.src = next.url;
+        player.play();
+        radioStatus.innerHTML = `🎙️ Radio svira: ${next.display}`;
+    }
+
+    function startRadio() {
+        if (fullSongs.length === 0) return;
+        if (currentIndex >= fullSongs.length) currentIndex = 0;
+        const song = fullSongs[currentIndex];
+        player.src = song.url;
+        player.play();
+        radioActive = true;
+        radioBtn.innerHTML = '⏸️ ZAUSTAVI RADIO';
+        radioStatus.innerHTML = `🎙️ Radio svira: ${song.display}`;
+    }
+
+    player.addEventListener('ended', playNext);
+    radioBtn.addEventListener('click', () => {
+        if (radioActive) stopRadio();
+        else startRadio();
+    });
+
+    renderButtons();
+</script>
+</body>
+</html>
