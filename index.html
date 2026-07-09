@@ -169,7 +169,18 @@
         radioStatus.innerHTML = `🎙️ Radio svira: ${song.display}`;
     }
 
-    player.addEventListener('ended', playNext);
+    player.addEventListener('ended', function() {
+    if (currentIndex < songs.length - 1) {
+        currentIndex++;
+        player.src = songs[currentIndex].url;
+        player.play();
+        radioStatus.innerHTML = '🎙️ Radio svira: ' + songs[currentIndex].display;
+    } else {
+        radioActive = false;
+        radioBtn.innerHTML = '▶️ POKRENI LIVE RADIO';
+        radioStatus.innerHTML = '🏁 Kraj plejliste';
+    }
+});
     radioBtn.addEventListener('click', () => {
         if (radioActive) stopRadio();
         else startRadio();
