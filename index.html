@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Veljo Radio - Automatska lista</title>
+    <title>Veljo Radio</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -73,8 +73,8 @@
     <h1>🎵 Veljo Radio</h1>
     <button id="radioBtn" class="radio-btn">▶️ POKRENI LIVE RADIO</button>
     <div id="radioStatus" class="status">⏳ Učitavam pjesme...</div>
-    <div i<audiaudioPlayer.src<d="songListContainer" class="playlist"></div>
-    audio o id="globalPlayer" controls style="display: none;"></audio>
+    <div id="songListContainer" class="playlist"></div>
+    <audio id="globalPlayer" controls style="display: none;"></audio>
     <footer>Pjesme se automatski učitavaju. Dodaj MP3 u repozitorij – sam se pojavi.</footer>
 </div>
 
@@ -86,11 +86,10 @@
     const container = document.getElementById('songListContainer');
     const player = document.getElementById('globalPlayer');
 
-    let songs = [];         // lista objekata { display, url }
+    let songs = [];
     let radioActive = false;
     let currentIndex = 0;
 
-    // Učitaj listu MP3 fajlova sa GitHub API
     async function loadSongs() {
         try {
             radioStatus.innerHTML = '⏳ Učitavam listu pjesama...';
@@ -99,16 +98,14 @@
             if (!response.ok) throw new Error('Ne mogu dohvatiti listu');
             const files = await response.json();
 
-            // Filtriraj samo .mp3 fajlove (neosjetljivo na veličina slova)
             const mp3Files = files.filter(f => f.name.toLowerCase().endsWith('.mp3'));
             if (mp3Files.length === 0) throw new Error('Nema MP3 fajlova');
 
-            // Sortiraj po imenu
             mp3Files.sort((a,b) => a.name.localeCompare(b.name));
 
             songs = mp3Files.map(f => ({
                 display: f.name.replace(/\.mp3$/i, '').replace(/[_-]/g, ' '),
-                url: f.name
+                url: f.download_url
             }));
 
             renderSongs();
@@ -126,36 +123,17 @@
             btn.textContent = `🎵 ${song.display}`;
             btn.className = 'song-btn';
             btn.onclick = () => {
-                if (radioActive) stopRadio();
+                if (radioActive) {
+                    radioActive = false;
+                    radioBtn.innerHTML = '▶️ POKRENI LIVE RADIO';
+                }
+                currentIndex = idx;
                 player.src = song.url;
                 player.play();
                 radioStatus.innerHTML = `🎵 Svira: ${song.display}`;
             };
             container.appendChild(btn);
         });
-    }
-
-    function stopRadio() {
-        radioActive = false;
-        radioBtn.innerHTML = '▶️ POKRENI LIVE RADIO';
-        radioStatus.innerHTML = '⏸️ Radio pauziran.';
-        player.pause();
-    }
-
-    function playNext() {
-        if (!radioActive) return;
-        currentIndex++;
-        if (currentIndex >= songs.length) {
-            radioActive = false;
-            radioBtn.innerHTML = '▶️ POKRENI LIVE RADIO';
-            radioStatus.innerHTML = '🏁 Kraj plejliste. Pritisni dugme za ponovni početak.';
-            player.pause();
-            return;
-        }
-        const next = songs[currentIndex];
-        player.src = next.url;
-        player.play();
-        radioStatus.innerHTML = `🎙️ Radio svira: ${next.display}`;
     }
 
     function startRadio() {
@@ -169,18 +147,30 @@
         radioStatus.innerHTML = `🎙️ Radio svira: ${song.display}`;
     }
 
-    player.addEventListener('ended', function() {
-    if (currentIndex < songs.length - 1) {
-        currentIndex++;
-        player.src = songs[currentIndex].url;
-        player.play();
-        radioStatus.innerHTML = '🎙️ Radio svira: ' + songs[currentIndex].display;
-    } else {
+    function stopRadio() {
         radioActive = false;
         radioBtn.innerHTML = '▶️ POKRENI LIVE RADIO';
-        radioStatus.innerHTML = '🏁 Kraj plejliste';
+        radioStatus.innerHTML = '⏸️ Radio pauziran.';
+        player.pause();
     }
-});
+
+    player.addEventListener('ended', function() {
+        if (radioActive) {
+            currentIndex++;
+            if (currentIndex >= songs.length) {
+                radioActive = false;
+                radioBtn.innerHTML = '▶️ POKRENI LIVE RADIO';
+                radioStatus.innerHTML = '🏁 Kraj plejliste';
+                player.pause();
+                return;
+            }
+            const next = songs[currentIndex];
+            player.src = next.url;
+            player.play();
+            radioStatus.innerHTML = `🎙️ Radio svira: ${next.display}`;
+        }
+    });
+
     radioBtn.addEventListener('click', () => {
         if (radioActive) stopRadio();
         else startRadio();
