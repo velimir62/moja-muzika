@@ -73,8 +73,8 @@
     <h1>🎵 Veljo Radio</h1>
     <button id="radioBtn" class="radio-btn">▶️ POKRENI LIVE RADIO</button>
     <div id="radioStatus" class="status">⏳ Učitavam pjesme...</div>
-    <div id="songListContainer" class="playlist"></div>
-    <audio id="globalPlayer" controls style="display: none;"></audio>
+    <div i<audiaudioPlayer.src<d="songListContainer" class="playlist"></div>
+    audio o id="globalPlayer" controls style="display: none;"></audio>
     <footer>Pjesme se automatski učitavaju. Dodaj MP3 u repozitorij – sam se pojavi.</footer>
 </div>
 
@@ -108,7 +108,7 @@
 
             songs = mp3Files.map(f => ({
                 display: f.name.replace(/\.mp3$/i, '').replace(/[_-]/g, ' '),
-                url: f.download_url
+                url: f.name
             }));
 
             renderSongs();
