@@ -1,185 +1,555 @@
 <!DOCTYPE html>
-<html lang="sr">
+<html lang="hr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Veljo Radio</title>
+
+<title>VELJO-RADIO</title>
 
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+    box-sizing: border-box;
+}
+
 body {
-    font-family: system-ui;
-    background: linear-gradient(135deg, #1a1a2e, #16213e);
-    color: #eee;
+    margin: 0;
     padding: 20px;
+    background: #0b1020;
+    color: #e8e8e8;
+    font-family: Arial, Helvetica, sans-serif;
 }
+
 .container {
-    max-width: 700px;
+    max-width: 750px;
     margin: auto;
-    background: rgba(0,0,0,0.4);
-    border-radius: 30px;
-    padding: 20px;
 }
-h1 { text-align: center; margin-bottom: 15px; }
 
-.radio-btn, .next-btn {
-    width: 100%;
-    border: none;
+h1 {
+    text-align: center;
+    color: #e94560;
+    font-size: 38px;
+    margin: 10px 0 5px;
+}
+
+.subtitle {
+    text-align: center;
+    color: #9ca3af;
+    margin-bottom: 20px;
+}
+
+.navigation {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.navigation a {
+    flex: 1;
     padding: 14px;
-    font-size: 20px;
-    border-radius: 50px;
-    margin-bottom: 10px;
-    cursor: pointer;
-}
-
-.radio-btn { background: #1db954; color: white; }
-.next-btn { background: #e94560; color: white; }
-
-.song-btn {
-    width: 100%;
-    padding: 10px;
-    margin: 5px 0;
-    border-radius: 30px;
-    border: none;
-    background: #2a2a4a;
+    text-align: center;
+    text-decoration: none;
     color: white;
+    background: #163d6b;
+    border-radius: 9px;
+    font-weight: bold;
+    font-size: 17px;
+}
+
+.navigation a.active {
+    background: #e94560;
+}
+
+.navigation a:hover {
+    background: #e94560;
+}
+
+.player-box {
+    background: #16213e;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.35);
+}
+
+.now-playing {
+    text-align: center;
+    color: #e94560;
+    font-size: 19px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    min-height: 24px;
+}
+
+audio {
+    width: 100%;
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+button {
+    flex: 1;
+    padding: 14px;
+    border: 0;
+    border-radius: 8px;
+    background: #e94560;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
     cursor: pointer;
 }
-.song-btn:hover { background: #e94560; }
 
-.status { text-align: center; margin: 10px; }
-.playlist { max-height: 400px; overflow-y: auto; }
+button:hover {
+    background: #ff5570;
+}
 
-audio { display: none; }
+button:active {
+    transform: scale(.98);
+}
+
+.playlist-title {
+    margin-top: 25px;
+    color: #e94560;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+ul {
+    list-style: none;
+    padding: 0;
+}
+
+li {
+    background: #16213e;
+    margin: 8px 0;
+    padding: 14px 16px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: .2s;
+}
+
+li:hover {
+    background: #0f3460;
+    transform: scale(1.01);
+}
+
+li.active {
+    background: #0f3460;
+    border-left: 5px solid #e94560;
+}
+
+.status {
+    text-align: center;
+    color: #888;
+    margin-top: 20px;
+    font-size: 14px;
+}
+
+.error {
+    color: #ff4d6d;
+    text-align: center;
+    font-weight: bold;
+}
+
+@media (max-width: 600px) {
+
+    body {
+        padding: 12px;
+    }
+
+    h1 {
+        font-size: 29px;
+    }
+
+    .navigation,
+    .controls {
+        flex-direction: column;
+    }
+}
 </style>
 </head>
 
 <body>
 
 <div class="container">
-<h1>🎵 Veljo Radio</h1>
 
-<button id="radioBtn" class="radio-btn">▶️ POKRENI RADIO</button>
-<button id="nextBtn" class="next-btn">⏭️ SLJEDEĆA</button>
+    <h1>🎵 VELJO-RADIO</h1>
 
-<div id="status" class="status">Učitavanje...</div>
-<div id="list" class="playlist"></div>
+    <div class="subtitle">
+        My Media Center — MP3
+    </div>
 
-<audio id="player"></audio>
+    <div class="navigation">
+
+        <a
+            href="https://velimir62.github.io/moja-muzika/"
+            class="active">
+            🎵 VELJO-RADIO
+        </a>
+
+        <a
+            href="https://velimir62.github.io/veljo-video-muzika/">
+            🎬 VELJO-VIDEO
+        </a>
+
+    </div>
+
+    <div class="player-box">
+
+        <div id="nowPlaying" class="now-playing">
+            🎵 Učitavanje muzike...
+        </div>
+
+        <audio
+            id="player"
+            controls
+            preload="metadata">
+        </audio>
+
+        <div class="controls">
+
+            <button id="play">
+                ▶ Pokreni
+            </button>
+
+            <button id="prev">
+                ⏮ Prethodna
+            </button>
+
+            <button id="next">
+                Sljedeća ⏭
+            </button>
+
+        </div>
+
+    </div>
+
+    <div class="playlist-title">
+        🎵 Playlist
+    </div>
+
+    <ul id="playlist"></ul>
+
+    <div id="status" class="status">
+        Učitavanje...
+    </div>
+
 </div>
 
 <script>
-const REPO_OWNER = "velimir62";
-const REPO_NAME = "moja-muzika";
 
-const player = document.getElementById("player");
-const list = document.getElementById("list");
-const status = document.getElementById("status");
-const radioBtn = document.getElementById("radioBtn");
-const nextBtn = document.getElementById("nextBtn");
+const OWNER = "velimir62";
+const REPO = "moja-muzika";
+const FOLDER = "music";
+
+const playlist =
+    document.getElementById("playlist");
+
+const player =
+    document.getElementById("player");
+
+const nowPlaying =
+    document.getElementById("nowPlaying");
+
+const status =
+    document.getElementById("status");
+
+const playButton =
+    document.getElementById("play");
+
+const prevButton =
+    document.getElementById("prev");
+
+const nextButton =
+    document.getElementById("next");
 
 let songs = [];
-let current = 0;
-let radioOn = false;
+let current = -1;
 
-/* 🔥 TVOJ REDOSLIJED */
-const customOrder = [
-"101Сине мој.mp3","1 u nasim godinama.mp3","2 ђуличан.mp3","3A.mp3","4 moja raja.mp3",
-"5 Gore nego lani.mp3","6moja raja.mp3","7jesen.mp3","8 sportu.mp3","9 duhu pravoslavlja.mp3",
-"10najboljim godinama.mp3","11 Гламочна бури.mp3","12B.mp3","13 Svake noci kada legnem (1).mp3",
-"14u duhu pravoslavlja.mp3","15 живот.mp3","A.mp3","16A1.mp3","17Ту је сада једна екипа, (1).mp3",
-"18 Магарац Самара.mp3","19 31.mp3","20 шкорпија.mp3","21kenu moj.mp3","22Donkey Opera.mp3",
-"23majmuni.mp3","24Trideset šest... još smo tu.mp3","25poslednja luka (1).mp3","26B.mp3",
-"27 evo me stigoh (1).mp3","28bacon abd eggs.mp3","29balkanski mrak.mp3","30better ever.mp3",
-"31bisa.mp3","32bisa1.mp3","33boki10.mp3","42boki11.mp3","34Braco.mp3","35brane.mp3","36sanja.mp3",
-"37C.mp3","38Četkica i boja.mp3","39combine.mp3","40D.mp3","41dame.mp3","43date2.mp3",
-"44dolazim i ja.mp3","45Dugo smo, Jaco, zajedno sretni,.mp3","E.mp3","47evo me stigoh.mp3",
-"100evo me stigoh.mp3","48G.mp3","49gesara.mp3","50godisnjica.mp3","51James party.mp3",
-"52jesen (1).mp3","53jjn.mp3","54K.mp3","55Kada te napusti životna ljubav.mp3",
-"56kokotile10.mp3","57kokotilo.mp3","58lj.mp3","59 M.mp3","60mali kokotilo.mp3",
-"61Mara (1).mp3","103Mara.mp3","62mica1.mp3","104miso.mp3","63moja luka.mp3",
-"64moja nafaka.mp3","65moja slava.mp3","66Najgore je kad ti dodje.mp3","67Nata.mp3",
-"68Nebo Sivo Kiša.mp3","69Od Teherana do Tel Aviva, (1).mp3","70P.mp3","71Pemzija.mp3",
-"72pero djavole.mp3","73 petrM.mp3","74pjevac.mp3","75povratak (1).mp3","76 povratak.mp3",
-"78Preko bare iza mene.mp3","79ranka.mp3","80return.mp3","81S.mp3","82 Sarma Bez Suza.mp3",
-"83 sipovo.mp3","84 slanina.mp3","105slanina1.mp3","85sretno.mp3","86Takav mi dolazi dan.mp3",
-"87tuba.mp3","106 tuba1.mp3","88U Banjaluci dan miriše na kavu,.mp3",
-"89U Mačkovcu (1).mp3","106U Mačkovcu.mp3","107U.mp3","90ujradena.mp3","01usipovu.mp3",
-"92Veljo Pogleda.mp3","93Vrbasov Glas.mp3","94Vučko Kita.mp3","94Z.mp3","96Zeleni Brijeg.mp3",
-"97 znakovi.mp3","98 zubar.mp3","99zz.mp3","110zzs.mp3","111БАЛАДА О МАГАРЦУ.mp3",
-"112ВОДА СТИЖЕ.mp3","113вратила se roda.mp3","114 јопет.mp3","115кишни дани.mp3",
-"116Крај ријеке Врбас родио се син.mp3","117Ланац око врата.mp3",
-"118На последњој степеници.mp3","119 нестају у мраку.mp3","120Није било Торте.mp3",
-"121ово сада живи са мном.mp3","122ј, Цане Здравкићу, срећан ти рођендан,.mp3",
-"123 п.mp3","124Пегла У Халифаксу.mp3","125Планови дјевојчице Јасминке (1).mp3",
-"126поглед у даљине.mp3","127Подеране Гаће Купаће.mp3","128Распукла Палета.mp3",
-"129систем ме дави.mp3","130Т.mp3","131Ту је сада једна екипа,.mp3","132 четири даме.mp3"
-];
 
-async function loadSongs() {
-    const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/`);
-    const data = await res.json();
+/* ----------------------------------
+   UČITAVANJE MP3 FAJLOVA SA GITHUBA
+---------------------------------- */
 
-    let files = data.filter(f => f.name.endsWith(".mp3"));
+async function loadMusic() {
 
-    files.sort((a,b)=>{
-        let A = customOrder.indexOf(a.name);
-        let B = customOrder.indexOf(b.name);
-        return (A===-1?9999:A) - (B===-1?9999:B);
-    });
+    const api =
+        `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FOLDER}`;
 
-    songs = files.map(f => ({
-        name: f.name,
-        url: f.download_url
-    }));
+    const response =
+        await fetch(api, {
+            cache: "no-store"
+        });
 
-    render();
-    status.innerHTML = "Spremno 🎶";
-}
-
-function render(){
-    list.innerHTML="";
-    songs.forEach((s,i)=>{
-        let btn=document.createElement("button");
-        btn.className="song-btn";
-        btn.textContent="🎵 "+s.name.replace(".mp3","");
-        btn.onclick=()=>playSong(i);
-        list.appendChild(btn);
-    });
-}
-
-function playSong(i){
-    current=i;
-    player.src=songs[i].url;
-    player.play();
-    status.innerHTML="🎵 "+songs[i].name;
-}
-
-function nextSong(){
-    current++;
-    if(current>=songs.length) current=0; // 🔁 LOOP
-    playSong(current);
-}
-
-player.addEventListener("ended", ()=>{
-    if(radioOn) nextSong();
-});
-
-radioBtn.onclick=()=>{
-    radioOn=!radioOn;
-
-    if(radioOn){
-        playSong(current);
-        radioBtn.innerHTML="⏸️ STOP";
-    } else {
-        player.pause();
-        radioBtn.innerHTML="▶️ POKRENI RADIO";
+    if (!response.ok) {
+        throw new Error(
+            "GitHub ne može otvoriti folder music/"
+        );
     }
-};
 
-nextBtn.onclick=nextSong;
+    const files =
+        await response.json();
 
-loadSongs();
+    songs = files
+        .filter(file =>
+            file.type === "file" &&
+            file.name
+                .toLowerCase()
+                .endsWith(".mp3")
+        )
+        .map(file => ({
+            title: file.name.replace(
+                /\.mp3$/i,
+                ""
+            ),
+            url: file.download_url
+        }));
+
+    songs.sort((a, b) =>
+        a.title.localeCompare(
+            b.title,
+            undefined,
+            {
+                numeric: true,
+                sensitivity: "base"
+            }
+        )
+    );
+}
+
+
+/* ----------------------------------
+   PRIKAZ PLAYLISTE
+---------------------------------- */
+
+function showPlaylist() {
+
+    playlist.innerHTML = "";
+
+    songs.forEach((song, index) => {
+
+        const li =
+            document.createElement("li");
+
+        li.textContent =
+            "🎵 " + song.title;
+
+        li.addEventListener(
+            "click",
+            () => playSong(index)
+        );
+
+        playlist.appendChild(li);
+    });
+
+    status.textContent =
+        songs.length +
+        " MP3 fajlova pronađeno";
+}
+
+
+/* ----------------------------------
+   POKRETANJE PJESME
+---------------------------------- */
+
+function playSong(index) {
+
+    if (
+        index < 0 ||
+        index >= songs.length
+    ) {
+        return;
+    }
+
+    current = index;
+
+    player.src =
+        songs[current].url;
+
+    nowPlaying.textContent =
+        "🎵 " +
+        songs[current].title +
+        "   (" +
+        (current + 1) +
+        " / " +
+        songs.length +
+        ")";
+
+    document.title =
+        songs[current].title +
+        " - VELJO-RADIO";
+
+    Array.from(
+        playlist.children
+    ).forEach(li => {
+        li.classList.remove("active");
+    });
+
+    const active =
+        playlist.children[current];
+
+    if (active) {
+
+        active.classList.add("active");
+
+        active.scrollIntoView({
+            behavior: "smooth",
+            block: "center"
+        });
+    }
+}
+
+
+/* ----------------------------------
+   POKRENI
+---------------------------------- */
+
+playButton.addEventListener(
+    "click",
+    function () {
+
+        if (songs.length === 0) {
+            return;
+        }
+
+        if (current === -1) {
+            playSong(0);
+        }
+
+        player.play().catch(() => {});
+    }
+);
+
+
+/* ----------------------------------
+   PRETHODNA
+---------------------------------- */
+
+prevButton.addEventListener(
+    "click",
+    function () {
+
+        if (current > 0) {
+
+            playSong(current - 1);
+
+            player.play().catch(() => {});
+        }
+    }
+);
+
+
+/* ----------------------------------
+   SLJEDEĆA
+---------------------------------- */
+
+nextButton.addEventListener(
+    "click",
+    function () {
+
+        if (
+            current < songs.length - 1
+        ) {
+
+            playSong(current + 1);
+
+            player.play().catch(() => {});
+        }
+    }
+);
+
+
+/* ----------------------------------
+   AUTOMATSKA SLJEDEĆA PJESMA
+---------------------------------- */
+
+player.addEventListener(
+    "ended",
+    function () {
+
+        if (
+            current < songs.length - 1
+        ) {
+
+            playSong(current + 1);
+
+            player.play().catch(() => {});
+        }
+    }
+);
+
+
+/* ----------------------------------
+   TIPKE NA TASTATURI
+---------------------------------- */
+
+document.addEventListener(
+    "keydown",
+    function (e) {
+
+        if (
+            e.key === "ArrowRight" &&
+            current < songs.length - 1
+        ) {
+
+            playSong(current + 1);
+        }
+
+        if (
+            e.key === "ArrowLeft" &&
+            current > 0
+        ) {
+
+            playSong(current - 1);
+        }
+    }
+);
+
+
+/* ----------------------------------
+   START
+---------------------------------- */
+
+async function start() {
+
+    try {
+
+        await loadMusic();
+
+        if (songs.length === 0) {
+
+            nowPlaying.textContent =
+                "🎵 Nema MP3 fajlova";
+
+            status.textContent =
+                "Provjeri da li su MP3 fajlovi u music/ folderu.";
+
+            return;
+        }
+
+        showPlaylist();
+
+        nowPlaying.textContent =
+            "🎵 " +
+            songs.length +
+            " MP3 fajlova spremno";
+
+    } catch (error) {
+
+        console.error(error);
+
+        nowPlaying.innerHTML =
+            '<span class="error">❌ Greška pri učitavanju muzike</span>';
+
+        status.textContent =
+            error.message;
+    }
+}
+
+start();
+
 </script>
 
 </body>
