@@ -4,9 +4,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>VELJO-RADIO</title>
 
 <style>
+
 * {
     box-sizing: border-box;
 }
@@ -94,10 +96,24 @@ button {
     font-size: 16px;
     font-weight: bold;
     cursor: pointer;
+    transition: 0.2s;
 }
 
 button:hover {
     background: #ff5570;
+}
+
+/* =========================================================
+   RANDOM PLAY AKTIVAN
+   ========================================================= */
+
+button.random-active {
+    background: #50fa7b;
+    color: #08120c;
+}
+
+button.random-active:hover {
+    background: #6cff91;
 }
 
 .search {
@@ -161,6 +177,7 @@ button:hover {
 }
 
 @media (max-width: 600px) {
+
     body {
         padding: 10px;
     }
@@ -174,6 +191,7 @@ button:hover {
         flex-direction: column;
     }
 }
+
 </style>
 </head>
 
@@ -200,13 +218,19 @@ button:hover {
 
     </div>
 
+
     <div class="player-box">
 
         <div id="nowPlaying" class="now-playing">
             🎵 Učitavanje muzike...
         </div>
 
-        <audio id="player" controls preload="metadata"></audio>
+        <audio
+            id="player"
+            controls
+            preload="metadata">
+        </audio>
+
 
         <div class="buttons">
 
@@ -222,9 +246,14 @@ button:hover {
                 Sljedeća ⏭
             </button>
 
+            <button id="randomize">
+                🔀 Random Play
+            </button>
+
         </div>
 
     </div>
+
 
     <input
         id="search"
@@ -234,17 +263,21 @@ button:hover {
         autocomplete="off"
     >
 
+
     <div class="playlist-title">
         🎵 Muzička lista
     </div>
 
+
     <ul id="playlist"></ul>
+
 
     <div id="status" class="status">
         Učitavanje...
     </div>
 
 </div>
+
 
 <script>
 
@@ -253,7 +286,9 @@ button:hover {
    ========================================================= */
 
 const USER = "velimir62";
+
 const REPO = "moja-muzika";
+
 const BRANCH = "master";
 
 const API =
@@ -293,10 +328,34 @@ const prevButton =
 const nextButton =
     document.getElementById("next");
 
+const randomizeButton =
+    document.getElementById("randomize");
+
+
+/* =========================================================
+   VARIJABLE
+   ========================================================= */
 
 let songs = [];
+
 let filteredSongs = [];
+
 let current = -1;
+
+
+/*
+   Random Play
+   */
+
+let randomPlay = false;
+
+
+/*
+   Lista indeksa pjesama koje još nisu
+   puštene u trenutnom random krugu.
+*/
+
+let randomQueue = [];
 
 
 /* =========================================================
@@ -308,53 +367,75 @@ async function loadSongs() {
     status.textContent =
         "Učitavanje muzike...";
 
-    const response = await fetch(API, {
-        cache: "no-store",
-        headers: {
-            "Accept": "application/vnd.github+json"
-        }
-    });
+
+    const response =
+        await fetch(API, {
+
+            cache: "no-store",
+
+            headers: {
+                "Accept":
+                    "application/vnd.github+json"
+            }
+
+        });
+
 
     if (!response.ok) {
+
         throw new Error(
             "GitHub greška: " +
             response.status
         );
+
     }
 
-    const files = await response.json();
+
+    const files =
+        await response.json();
+
 
     if (!Array.isArray(files)) {
+
         throw new Error(
             "GitHub nije vratio listu fajlova."
         );
+
     }
 
 
     /*
        Uzimamo samo MP3 fajlove
-       iz glavnog foldera repozitorijuma.
+       iz glavnog foldera.
     */
 
-    songs = files
-        .filter(file =>
-            file.type === "file" &&
-            typeof file.name === "string" &&
-            /\.mp3$/i.test(file.name) &&
-            file.download_url
-        )
-        .map(file => ({
+    songs =
+        files
+            .filter(file =>
+                file.type === "file" &&
+                typeof file.name === "string" &&
+                /\.mp3$/i.test(file.name) &&
+                file.download_url
+            )
+            .map(file => ({
 
-            name: file.name,
+                name: file.name,
 
-            title: file.name.replace(
-                /\.mp3$/i,
-                ""
-            ),
+                title:
+                    file.name.replace(
+                        /\.mp3$/i,
+                        ""
+                    ),
 
-            url: file.download_url
-        }));
+                url:
+                    file.download_url
 
+            }));
+
+
+    /*
+       Sortiraj po imenu.
+    */
 
     songs.sort((a, b) =>
         a.title.localeCompare(
@@ -367,7 +448,94 @@ async function loadSongs() {
         )
     );
 
-    filteredSongs = [...songs];
+
+    filteredSongs =
+        [...songs];
+
+
+    /*
+       Napravi početni random redoslijed.
+    */
+
+    resetRandomQueue();
+
+}
+
+
+/* =========================================================
+   RANDOM QUEUE
+   ========================================================= */
+
+/*
+   Napravi novi nasumični redoslijed.
+*/
+
+function resetRandomQueue() {
+
+    randomQueue =
+        filteredSongs.map(
+            (_, index) => index
+        );
+
+
+    /*
+       Fisher-Yates shuffle
+    */
+
+    for (
+        let i = randomQueue.length - 1;
+        i > 0;
+        i--
+    ) {
+
+        const j =
+            Math.floor(
+                Math.random() * (i + 1)
+            );
+
+
+        [
+            randomQueue[i],
+            randomQueue[j]
+        ] =
+        [
+            randomQueue[j],
+            randomQueue[i]
+        ];
+
+    }
+
+}
+
+
+/*
+   Vrati sljedeću random pjesmu.
+*/
+
+function getRandomNextIndex() {
+
+    /*
+       Ako nema više pjesama,
+       napravi novi krug.
+    */
+
+    if (randomQueue.length === 0) {
+
+        resetRandomQueue();
+
+    }
+
+
+    /*
+       Uzmi prvu iz random reda.
+    */
+
+    const nextIndex =
+        randomQueue.shift();
+
+
+    return nextIndex;
+
 }
 
 
@@ -379,28 +547,53 @@ function renderPlaylist() {
 
     playlist.innerHTML = "";
 
+
     filteredSongs.forEach(
         (song, index) => {
 
             const li =
                 document.createElement("li");
 
+
             li.textContent =
-                "🎵 " + song.title;
+                "🎵 " +
+                song.title;
+
 
             li.addEventListener(
                 "click",
                 () => {
 
+                    /*
+                       Ako korisnik ručno izabere
+                       pjesmu u Random modu,
+                       uklanjamo je iz random reda.
+                    */
+
+                    if (randomPlay) {
+
+                        randomQueue =
+                            randomQueue.filter(
+                                item =>
+                                    item !== index
+                            );
+
+                    }
+
+
                     playSong(index);
+
 
                     player.play().catch(
                         () => {}
                     );
+
                 }
             );
 
+
             playlist.appendChild(li);
+
         }
     );
 
@@ -409,6 +602,7 @@ function renderPlaylist() {
         '<span class="ok">✓ ' +
         filteredSongs.length +
         " pjesama</span>";
+
 }
 
 
@@ -422,17 +616,25 @@ function playSong(index) {
         index < 0 ||
         index >= filteredSongs.length
     ) {
+
         return;
+
     }
 
+
     current = index;
+
 
     const song =
         filteredSongs[current];
 
-    player.src = song.url;
+
+    player.src =
+        song.url;
+
 
     player.load();
+
 
     nowPlaying.textContent =
         "🎵 " +
@@ -441,32 +643,53 @@ function playSong(index) {
         (current + 1) +
         " / " +
         filteredSongs.length +
-        ")";
+        ")" +
+        (randomPlay
+            ? " 🔀"
+            : "");
+
 
     document.title =
         song.title +
         " - VELJO-RADIO";
 
 
+    /*
+       Označi aktivnu pjesmu.
+    */
+
     Array.from(
         playlist.children
     ).forEach(li => {
-        li.classList.remove("active");
+
+        li.classList.remove(
+            "active"
+        );
+
     });
 
 
     const active =
         playlist.children[current];
 
+
     if (active) {
 
-        active.classList.add("active");
+        active.classList.add(
+            "active"
+        );
+
 
         active.scrollIntoView({
+
             behavior: "smooth",
+
             block: "center"
+
         });
+
     }
+
 }
 
 
@@ -478,17 +701,37 @@ playButton.addEventListener(
     "click",
     () => {
 
-        if (filteredSongs.length === 0) {
+        if (
+            filteredSongs.length === 0
+        ) {
+
             return;
+
         }
 
+
         if (current === -1) {
-            playSong(0);
+
+            if (randomPlay) {
+
+                const randomIndex =
+                    getRandomNextIndex();
+
+                playSong(randomIndex);
+
+            } else {
+
+                playSong(0);
+
+            }
+
         }
+
 
         player.play().catch(
             () => {}
         );
+
     }
 );
 
@@ -501,14 +744,21 @@ prevButton.addEventListener(
     "click",
     () => {
 
-        if (current > 0) {
+        if (
+            current > 0
+        ) {
 
-            playSong(current - 1);
+            playSong(
+                current - 1
+            );
+
 
             player.play().catch(
                 () => {}
             );
+
         }
+
     }
 );
 
@@ -522,16 +772,168 @@ nextButton.addEventListener(
     () => {
 
         if (
-            current >= 0 &&
-            current < filteredSongs.length - 1
+            filteredSongs.length === 0
         ) {
 
-            playSong(current + 1);
+            return;
+
+        }
+
+
+        /*
+           RANDOM PLAY
+        */
+
+        if (randomPlay) {
+
+            const randomIndex =
+                getRandomNextIndex();
+
+
+            playSong(
+                randomIndex
+            );
+
 
             player.play().catch(
                 () => {}
             );
+
+
+            return;
+
         }
+
+
+        /*
+           NORMALNI MOD
+        */
+
+        if (
+            current >= 0 &&
+            current <
+                filteredSongs.length - 1
+        ) {
+
+            playSong(
+                current + 1
+            );
+
+
+            player.play().catch(
+                () => {}
+            );
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   RANDOM PLAY ON / OFF
+   ========================================================= */
+
+randomizeButton.addEventListener(
+    "click",
+    () => {
+
+        /*
+           Promijeni stanje.
+        */
+
+        randomPlay =
+            !randomPlay;
+
+
+        if (randomPlay) {
+
+            /*
+               RANDOM ON
+            */
+
+            randomizeButton.classList.add(
+                "random-active"
+            );
+
+
+            randomizeButton.textContent =
+                "🔀 Random ON";
+
+
+            /*
+               Napravi novi random red.
+            */
+
+            resetRandomQueue();
+
+
+            /*
+               Ako trenutno postoji pjesma,
+               ukloni je iz random reda.
+               Ne želimo da se odmah ponovi.
+            */
+
+            if (current >= 0) {
+
+                randomQueue =
+                    randomQueue.filter(
+                        index =>
+                            index !== current
+                    );
+
+            }
+
+
+            nowPlaying.textContent =
+                "🔀 Random Play AKTIVAN";
+
+
+            /*
+               Ako ništa trenutno ne svira,
+               odmah pokreni random pjesmu.
+            */
+
+            if (current === -1) {
+
+                const randomIndex =
+                    getRandomNextIndex();
+
+
+                playSong(
+                    randomIndex
+                );
+
+
+                player.play().catch(
+                    () => {}
+                );
+
+            }
+
+        } else {
+
+            /*
+               RANDOM OFF
+            */
+
+            randomizeButton.classList.remove(
+                "random-active"
+            );
+
+
+            randomizeButton.textContent =
+                "🔀 Random Play";
+
+
+            nowPlaying.textContent =
+                current >= 0
+                    ? "🎵 " +
+                      filteredSongs[current].title
+                    : "🎵 Izaberi pjesmu";
+
+        }
+
     }
 );
 
@@ -545,16 +947,60 @@ player.addEventListener(
     () => {
 
         if (
-            current >= 0 &&
-            current < filteredSongs.length - 1
+            filteredSongs.length === 0
         ) {
 
-            playSong(current + 1);
+            return;
+
+        }
+
+
+        /*
+           RANDOM PLAY
+        */
+
+        if (randomPlay) {
+
+            const randomIndex =
+                getRandomNextIndex();
+
+
+            playSong(
+                randomIndex
+            );
+
 
             player.play().catch(
                 () => {}
             );
+
+
+            return;
+
         }
+
+
+        /*
+           NORMALNI MOD
+        */
+
+        if (
+            current >= 0 &&
+            current <
+                filteredSongs.length - 1
+        ) {
+
+            playSong(
+                current + 1
+            );
+
+
+            player.play().catch(
+                () => {}
+            );
+
+        }
+
     }
 );
 
@@ -577,7 +1023,9 @@ player.addEventListener(
                 "❌ Ne mogu učitati: " +
                 filteredSongs[current].title +
                 "</span>";
+
         }
+
     }
 );
 
@@ -595,6 +1043,7 @@ search.addEventListener(
                 .trim()
                 .toLocaleLowerCase();
 
+
         filteredSongs =
             songs.filter(song =>
                 song.title
@@ -602,48 +1051,123 @@ search.addEventListener(
                     .includes(text)
             );
 
+
         current = -1;
+
+
+        /*
+           Pošto se lista promijenila,
+           napravimo novi random red.
+        */
+
+        resetRandomQueue();
+
 
         renderPlaylist();
 
-        if (filteredSongs.length > 0) {
+
+        if (
+            filteredSongs.length > 0
+        ) {
 
             nowPlaying.textContent =
-                "🎵 Izaberi pjesmu";
+                randomPlay
+                    ? "🔀 Izaberi random pjesmu"
+                    : "🎵 Izaberi pjesmu";
+
         }
+
     }
 );
 
 
 /* =========================================================
-   TIPKE
+   TIPKE NA TASTATURI
    ========================================================= */
 
 document.addEventListener(
     "keydown",
     event => {
 
+        /*
+           Ne reaguj dok korisnik piše
+           u search polje.
+        */
+
         if (
             event.target.tagName === "INPUT"
         ) {
+
             return;
+
         }
+
+
+        /*
+           SLJEDEĆA
+        */
 
         if (
-            event.key === "ArrowRight" &&
-            current < filteredSongs.length - 1
+            event.key === "ArrowRight"
         ) {
 
-            playSong(current + 1);
+            if (
+                filteredSongs.length === 0
+            ) {
+
+                return;
+
+            }
+
+
+            if (randomPlay) {
+
+                const randomIndex =
+                    getRandomNextIndex();
+
+
+                playSong(
+                    randomIndex
+                );
+
+
+                player.play().catch(
+                    () => {}
+                );
+
+            } else if (
+                current <
+                filteredSongs.length - 1
+            ) {
+
+                playSong(
+                    current + 1
+                );
+
+            }
+
         }
+
+
+        /*
+           PRETHODNA
+        */
 
         if (
             event.key === "ArrowLeft" &&
             current > 0
         ) {
 
-            playSong(current - 1);
+            playSong(
+                current - 1
+            );
+
         }
+
+
+        /*
+           SPACE = PLAY / PAUSE
+        */
 
         if (
             event.code === "Space"
@@ -651,11 +1175,33 @@ document.addEventListener(
 
             event.preventDefault();
 
-            if (player.paused) {
 
-                if (current === -1) {
-                    playSong(0);
+            if (
+                player.paused
+            ) {
+
+                if (
+                    current === -1
+                ) {
+
+                    if (randomPlay) {
+
+                        const randomIndex =
+                            getRandomNextIndex();
+
+
+                        playSong(
+                            randomIndex
+                        );
+
+                    } else {
+
+                        playSong(0);
+
+                    }
+
                 }
+
 
                 player.play().catch(
                     () => {}
@@ -664,8 +1210,11 @@ document.addEventListener(
             } else {
 
                 player.pause();
+
             }
+
         }
+
     }
 );
 
@@ -680,41 +1229,55 @@ async function start() {
 
         await loadSongs();
 
-        if (songs.length === 0) {
+
+        if (
+            songs.length === 0
+        ) {
 
             nowPlaying.textContent =
                 "🎵 Nema MP3 fajlova";
+
 
             status.innerHTML =
                 '<span class="error">' +
                 "Nijedan MP3 nije pronađen." +
                 "</span>";
 
+
             return;
+
         }
 
+
         renderPlaylist();
+
 
         nowPlaying.textContent =
             "🎵 " +
             songs.length +
             " pjesama spremno";
 
+
     } catch (error) {
 
         console.error(error);
+
 
         nowPlaying.innerHTML =
             '<span class="error">' +
             "❌ Greška pri učitavanju muzike" +
             "</span>";
 
+
         status.innerHTML =
             '<span class="error">' +
             error.message +
             "</span>";
+
     }
+
 }
+
 
 start();
 
