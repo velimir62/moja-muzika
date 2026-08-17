@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="hr">
 <head>
@@ -345,7 +344,7 @@ let current = -1;
 
 /*
    Random Play
-   */
+*/
 
 let randomPlay = false;
 
@@ -356,6 +355,32 @@ let randomPlay = false;
 */
 
 let randomQueue = [];
+
+
+/*
+   ========================================================
+   M.mp3 - POSEBNA PJESMA
+   ========================================================
+
+   M.mp3 se automatski pušta nakon svake
+   dvije normalne pjesme.
+
+   Primjer:
+
+   Pjesma 1
+   Pjesma 2
+   M.mp3
+   Pjesma 3
+   Pjesma 4
+   M.mp3
+   ...
+*/
+
+let mSong = null;
+
+let normalSongsPlayed = 0;
+
+let playingM = false;
 
 
 /* =========================================================
@@ -447,6 +472,34 @@ async function loadSongs() {
             }
         )
     );
+
+
+    /* =====================================================
+       PRONAĐI M.mp3
+       ===================================================== */
+
+    const specialM =
+        songs.find(song =>
+            song.name.toLowerCase() === "m.mp3"
+        );
+
+
+    if (specialM) {
+
+        mSong = specialM;
+
+
+        /*
+           M.mp3 uklanjamo iz normalne liste.
+           Zato se neće pojavljivati među pjesmama.
+        */
+
+        songs =
+            songs.filter(song =>
+                song.name.toLowerCase() !== "m.mp3"
+            );
+
+    }
 
 
     filteredSongs =
@@ -581,6 +634,15 @@ function renderPlaylist() {
                     }
 
 
+                    /*
+                       Ručni izbor normalne pjesme
+                       nije M.mp3, pa je ovo normalna
+                       reprodukcija.
+                    */
+
+                    playingM = false;
+
+
                     playSong(index);
 
 
@@ -607,6 +669,58 @@ function renderPlaylist() {
 
 
 /* =========================================================
+   PUSTI M.mp3
+   ========================================================= */
+
+function playMSong() {
+
+    if (!mSong) {
+
+        return;
+
+    }
+
+
+    playingM = true;
+
+
+    player.src =
+        mSong.url;
+
+
+    player.load();
+
+
+    nowPlaying.textContent =
+        "🎵 " +
+        mSong.title +
+        " 🔄";
+
+
+    document.title =
+        mSong.title +
+        " - VELJO-RADIO";
+
+
+    /*
+       Ukloni označenu normalnu pjesmu
+       iz playliste.
+    */
+
+    Array.from(
+        playlist.children
+    ).forEach(li => {
+
+        li.classList.remove(
+            "active"
+        );
+
+    });
+
+}
+
+
+/* =========================================================
    POKRENI PJESMU
    ========================================================= */
 
@@ -620,6 +734,9 @@ function playSong(index) {
         return;
 
     }
+
+
+    playingM = false;
 
 
     current = index;
@@ -748,6 +865,8 @@ prevButton.addEventListener(
             current > 0
         ) {
 
+            playingM = false;
+
             playSong(
                 current - 1
             );
@@ -774,6 +893,53 @@ nextButton.addEventListener(
         if (
             filteredSongs.length === 0
         ) {
+
+            return;
+
+        }
+
+
+        /*
+           Ako je trenutno M.mp3,
+           nastavi na sljedeću normalnu pjesmu.
+        */
+
+        if (playingM) {
+
+            playingM = false;
+
+
+            if (randomPlay) {
+
+                const randomIndex =
+                    getRandomNextIndex();
+
+
+                playSong(
+                    randomIndex
+                );
+
+            } else if (
+                current >= 0 &&
+                current <
+                filteredSongs.length - 1
+            ) {
+
+                playSong(
+                    current + 1
+                );
+
+            } else {
+
+                playSong(0);
+
+            }
+
+
+            player.play().catch(
+                () => {}
+            );
+
 
             return;
 
@@ -940,7 +1106,22 @@ randomizeButton.addEventListener(
 
 /* =========================================================
    AUTOMATSKI SLJEDEĆA
-   ========================================================= */
+   =========================================================
+
+   Redoslijed:
+
+   Pjesma 1
+   Pjesma 2
+   M.mp3
+   Pjesma 3
+   Pjesma 4
+   M.mp3
+   Pjesma 5
+   Pjesma 6
+   M.mp3
+
+   Isto vrijedi i kada je Random Play uključen.
+*/
 
 player.addEventListener(
     "ended",
@@ -955,9 +1136,101 @@ player.addEventListener(
         }
 
 
-        /*
+        /* =================================================
+           AKO JE ZAVRŠIO M.mp3
+           ================================================= */
+
+        if (playingM) {
+
+            playingM = false;
+
+
+            /*
+               Nakon M.mp3 nastavljamo
+               sa sljedećom normalnom pjesmom.
+            */
+
+            if (randomPlay) {
+
+                const randomIndex =
+                    getRandomNextIndex();
+
+
+                playSong(
+                    randomIndex
+                );
+
+            } else {
+
+                if (
+                    current >= 0 &&
+                    current <
+                    filteredSongs.length - 1
+                ) {
+
+                    playSong(
+                        current + 1
+                    );
+
+                } else {
+
+                    /*
+                       Ako smo došli do kraja liste,
+                       počni ponovo.
+                    */
+
+                    playSong(0);
+
+                }
+
+            }
+
+
+            player.play().catch(
+                () => {}
+            );
+
+
+            return;
+
+        }
+
+
+        /* =================================================
+           ZAVRŠILA JE NORMALNA PJESMA
+           ================================================= */
+
+        normalSongsPlayed++;
+
+
+        /* =================================================
+           NAKON SVAKIH 2 PJESME PUSTI M.mp3
+           ================================================= */
+
+        if (
+            normalSongsPlayed >= 2 &&
+            mSong
+        ) {
+
+            normalSongsPlayed = 0;
+
+
+            playMSong();
+
+
+            player.play().catch(
+                () => {}
+            );
+
+
+            return;
+
+        }
+
+
+        /* =================================================
            RANDOM PLAY
-        */
+           ================================================= */
 
         if (randomPlay) {
 
@@ -980,19 +1253,36 @@ player.addEventListener(
         }
 
 
-        /*
+        /* =================================================
            NORMALNI MOD
-        */
+           ================================================= */
 
         if (
             current >= 0 &&
             current <
-                filteredSongs.length - 1
+            filteredSongs.length - 1
         ) {
 
             playSong(
                 current + 1
             );
+
+
+            player.play().catch(
+                () => {}
+            );
+
+        } else {
+
+            /*
+               Kraj liste.
+               Počni ponovo.
+            */
+
+            normalSongsPlayed = 0;
+
+
+            playSong(0);
 
 
             player.play().catch(
@@ -1012,6 +1302,19 @@ player.addEventListener(
 player.addEventListener(
     "error",
     () => {
+
+        if (playingM && mSong) {
+
+            nowPlaying.innerHTML =
+                '<span class="error">' +
+                "❌ Ne mogu učitati: " +
+                mSong.title +
+                "</span>";
+
+            return;
+
+        }
+
 
         if (
             current >= 0 &&
@@ -1061,6 +1364,15 @@ search.addEventListener(
         */
 
         resetRandomQueue();
+
+
+        /*
+           Resetuj brojanje dvije pjesme.
+        */
+
+        normalSongsPlayed = 0;
+
+        playingM = false;
 
 
         renderPlaylist();
@@ -1120,6 +1432,47 @@ document.addEventListener(
             }
 
 
+            if (playingM) {
+
+                playingM = false;
+
+
+                if (randomPlay) {
+
+                    const randomIndex =
+                        getRandomNextIndex();
+
+
+                    playSong(
+                        randomIndex
+                    );
+
+                } else if (
+                    current <
+                    filteredSongs.length - 1
+                ) {
+
+                    playSong(
+                        current + 1
+                    );
+
+                } else {
+
+                    playSong(0);
+
+                }
+
+
+                player.play().catch(
+                    () => {}
+                );
+
+
+                return;
+
+            }
+
+
             if (randomPlay) {
 
                 const randomIndex =
@@ -1144,6 +1497,11 @@ document.addEventListener(
                     current + 1
                 );
 
+
+                player.play().catch(
+                    () => {}
+                );
+
             }
 
         }
@@ -1158,8 +1516,16 @@ document.addEventListener(
             current > 0
         ) {
 
+            playingM = false;
+
+
             playSong(
                 current - 1
+            );
+
+
+            player.play().catch(
+                () => {}
             );
 
         }
@@ -1285,4 +1651,3 @@ start();
 
 </body>
 </html>
-```
