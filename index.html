@@ -89,7 +89,7 @@ input {
 
 const OWNER = "velimir62";
 const REPO = "moja-muzika";
-const BRANCH = "master";
+const BRANCH = "40ef727e4eb93f9ce26521807134fc29c254c536";
 
 const audio = document.getElementById("audio");
 const status = document.getElementById("status");
@@ -166,7 +166,7 @@ async function loadTracks() {
     }
 
     tracks = data.tree
-      .filter(file => file.type === "blob" && /\.mp3$/i.test(file.path))
+      .filter(file => file.type === "blob" && /\.mp3$/i.test(file.path) && file.size > 1000)
       .map(file => ({
         name: file.path.split("/").pop(),
         path: file.path,
