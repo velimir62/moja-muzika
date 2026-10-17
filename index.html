@@ -14,23 +14,34 @@
       background: #f7f7f7;
     }
 
-    h1 { margin-bottom: 8px; }
-
     audio {
-      position: sticky;
-      top: 0;
       width: 100%;
       margin: 12px 0;
-      background: #f7f7f7;
+    }
+
+    #search {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      font: inherit;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0;
+    }
+
+    button {
+      padding: 8px 12px;
+      cursor: pointer;
     }
 
     #status { color: #555; }
 
-    ol {
-      padding-left: 34px;
-    }
-
-    li { padding: 3px 0; }
+    ol { padding-left: 34px; }
 
     button.track {
       border: 0;
@@ -47,17 +58,6 @@
       color: #b00020;
       text-decoration: underline;
     }
-
-    .controls {
-      display: flex;
-      gap: 8px;
-      margin: 8px 0;
-    }
-
-    .controls button {
-      padding: 8px 14px;
-      cursor: pointer;
-    }
   </style>
 </head>
 <body>
@@ -67,10 +67,13 @@
   <audio id="player" controls preload="metadata"></audio>
 
   <div class="controls">
+    <button id="start" type="button">▶ Pusti muziku</button>
     <button id="previous" type="button">⏮ Prethodna</button>
     <button id="next" type="button">Sljedeća ⏭</button>
+    <button id="shuffle" type="button">🔀 Nasumično: isključeno</button>
   </div>
 
+  <input id="search" type="search" placeholder="Pretraži pjesme…">
   <ol id="playlist"></ol>
 
   <script>
@@ -81,14 +84,20 @@
     const player = document.getElementById("player");
     const playlist = document.getElementById("playlist");
     const status = document.getElementById("status");
+    const search = document.getElementById("search");
+    const shuffleButton = document.getElementById("shuffle");
 
     let tracks = [];
     let currentIndex = -1;
+    let shuffle = false;
 
     function rawUrl(path) {
-      return "https://raw.githubusercontent.com/" +
-        owner + "/" + repository + "/" + branch + "/" +
-        path.split("/").map(encodeURIComponent).join("/");
+      const encodedPath = path
+        .split("/")
+        .map(encodeURIComponent)
+        .join("/");
+
+      return `https://raw.githubusercontent.com/${owner}/${repository}/${branch}/${encodedPath}`;
     }
 
     async function loadTracks() {
@@ -104,9 +113,9 @@
         const data = await response.json();
 
         tracks = (data.tree || [])
-          .filter(item =>
-            item.type === "blob" &&
-            /\.(mp3|mp4)$/i.test(item.path)
+          .filter(file =>
+            file.type === "blob" &&
+            /\.(mp3|mp4)$/i.test(file.path)
           )
           .sort((a, b) =>
             a.path.localeCompare(b.path, undefined, {
@@ -116,48 +125,86 @@
           );
 
         if (!tracks.length) {
-          status.textContent = "Nisam pronašao nijedan MP3 ili MP4 fajl.";
+          status.textContent = "Nisam pronašao MP3 ili MP4 fajlove.";
           return;
         }
 
-        playlist.replaceChildren();
-
-        tracks.forEach((track, index) => {
-          const item = document.createElement("li");
-          const button = document.createElement("button");
-
-          button.type = "button";
-          button.className = "track";
-          button.textContent = track.path.split("/").pop();
-          button.addEventListener("click", () => playTrack(index));
-
-          item.appendChild(button);
-          playlist.appendChild(item);
-        });
-
+        showTracks();
         status.textContent = `Učitano pjesama: ${tracks.length}`;
+
+        // Pokušaj pokretanja prve pjesme. Pregledač može tražiti klik korisnika.
+        playTrack(0, true);
       } catch (error) {
-        status.textContent =
-          "Greška pri učitavanju liste: " + error.message;
+        status.textContent = "Greška pri učitavanju: " + error.message;
       }
     }
 
-    function playTrack(index) {
+    function showTracks() {
+      const query = search.value.trim().toLocaleLowerCase();
+      playlist.replaceChildren();
+
+      tracks.forEach((track, index) => {
+        const name = track.path.split("/").pop();
+
+        if (!name.toLocaleLowerCase().includes(query)) return;
+
+        const item = document.createElement("li");
+        const button = document.createElement("button");
+
+        button.type = "button";
+        button.className = "track";
+        button.textContent = name;
+        button.classList.toggle("active", index === currentIndex);
+        button.addEventListener("click", () => playTrack(index));
+
+        item.appendChild(button);
+        playlist.appendChild(item);
+      });
+    }
+
+    function playTrack(index, automaticAttempt = false) {
       if (index < 0 || index >= tracks.length) return;
 
       currentIndex = index;
       player.src = rawUrl(tracks[index].path);
-      player.play().catch(() => {
-        status.textContent =
-          "Pjesma nije mogla automatski da se pokrene. Pritisni Play.";
-      });
+      showTracks();
 
-      document.querySelectorAll(".track").forEach((button, i) => {
-        button.classList.toggle("active", i === index);
-      });
-
-      status.textContent = "Sada svira: " + tracks[index].path.split("/").pop();
+      player.play()
+        .then(() => {
+          status.textContent =
+            "Sada svira: " + tracks[index].path.split("/").pop();
+        })
+        .catch(() => {
+          status.textContent = automaticAttempt
+            ? "Pregledač je blokirao automatsko puštanje. Klikni „Pusti muziku“."
+            : "Klikni Play na audio playeru da pokreneš pjesmu.";
+        });
     }
+
+    function nextTrack() {
+      if (!tracks.length) return;
+
+      if (shuffle && tracks.length > 1) {
+        let nextIndex;
+        do {
+          nextIndex = Math.floor(Math.random() * tracks.length);
+        } while (nextIndex === currentIndex);
+
+        playTrack(nextIndex);
+      } else {
+        playTrack((currentIndex + 1) % tracks.length);
+      }
+    }
+
+    document.getElementById("start").addEventListener("click", () => {
+      if (currentIndex === -1 && tracks.length) {
+        playTrack(0);
+      } else {
+        player.play().catch(() => {
+          status.textContent = "Pritisni Play na audio playeru.";
+        });
+      }
+    });
 
     document.getElementById("previous").addEventListener("click", () => {
       if (tracks.length) {
@@ -165,16 +212,21 @@
       }
     });
 
-    document.getElementById("next").addEventListener("click", () => {
-      if (tracks.length) {
-        playTrack((currentIndex + 1) % tracks.length);
-      }
+    document.getElementById("next").addEventListener("click", nextTrack);
+
+    shuffleButton.addEventListener("click", () => {
+      shuffle = !shuffle;
+      shuffleButton.textContent =
+        `🔀 Nasumično: ${shuffle ? "uključeno" : "isključeno"}`;
     });
 
-    player.addEventListener("ended", () => {
-      if (tracks.length) {
-        playTrack((currentIndex + 1) % tracks.length);
-      }
+    search.addEventListener("input", showTracks);
+
+    player.addEventListener("ended", nextTrack);
+
+    player.addEventListener("error", () => {
+      status.textContent =
+        "Greška pri učitavanju pjesme. Provjeri da li se fajl nalazi u repozitorijumu.";
     });
 
     loadTracks();
