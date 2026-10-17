@@ -168,9 +168,10 @@ async function loadTracks() {
       file.type === "blob" && /\.mp3$/i.test(file.path) && file.size > 1000
     );
 
-    function cleanTitle(path) {
+    function cleanTitle(path, archived = false) {
       let name = path.split("/").pop().replace(/\.mp3$/i, "");
       name = name.replace(/^\d{3}\s*/, "");
+      if (archived) name = name.replace(/^\d+[\s._-]*/, "");
       name = name.replace(/^[AB]+\d*[\s._-]*/i, "");
       return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         .toLocaleLowerCase().replace(/[^a-z0-9а-яёђћжшчћџљњ]/gi, "");
@@ -181,7 +182,7 @@ async function loadTracks() {
       if (!wanted) return null;
 
       const candidates = archivedFiles.map(candidate => {
-        const title = cleanTitle(candidate.path);
+        const title = cleanTitle(candidate.path, true);
         let score = 0;
         if (title === wanted) score = 1000;
         else if (title.length >= 4 && wanted.includes(title)) score = 700 + title.length;
