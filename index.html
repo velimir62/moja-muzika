@@ -32,9 +32,7 @@ function renderTracks() {
     const item = document.createElement("li");
     item.textContent = "🎵 " + track.name;
 
-    if (index === currentIndex) {
-      item.classList.add("active");
-    }
+    if (index === currentIndex) item.classList.add("active");
 
     item.addEventListener("click", () => playTrack(index));
     trackList.appendChild(item);
@@ -52,16 +50,14 @@ async function playTrack(index) {
   audio.load();
 
   nowPlaying.textContent = "Pesma: " + track.name;
-  status.textContent = "Učitavam: " + track.name;
+  status.textContent = "Pokrećem: " + track.name;
   renderTracks();
 
   try {
     await audio.play();
     status.textContent = "Sada svira: " + track.name;
   } catch (error) {
-    status.textContent =
-      "Ne mogu pustiti: " + track.name +
-      ". Proveri da li MP3 postoji na GitHubu.";
+    status.textContent = "Ne mogu pustiti: " + track.name;
     console.error(error);
   }
 }
@@ -69,14 +65,12 @@ async function playTrack(index) {
 function playNext() {
   if (!tracks.length) return;
 
-  let nextIndex;
+  let nextIndex = currentIndex + 1;
 
   if (shuffleOn && tracks.length > 1) {
     do {
       nextIndex = Math.floor(Math.random() * tracks.length);
     } while (nextIndex === currentIndex);
-  } else {
-    nextIndex = (currentIndex + 1) % tracks.length;
   }
 
   playTrack(nextIndex);
@@ -90,7 +84,6 @@ async function loadTracks() {
 
   try {
     const response = await fetch(apiUrl);
-
     if (!response.ok) {
       throw new Error("GitHub odgovor: " + response.status);
     }
@@ -100,7 +93,8 @@ async function loadTracks() {
     tracks = files
       .filter(file =>
         file.type === "file" &&
-        file.name.toLowerCase().endsWith(".mp3")
+        /\.mp3$/i.test(file.name) &&
+        file.download_url
       )
       .map(file => ({
         name: file.name,
@@ -124,7 +118,7 @@ async function loadTracks() {
 
     renderTracks();
   } catch (error) {
-    status.textContent = "Greška: " + error.message;
+    status.textContent = "Greška pri učitavanju: " + error.message;
     console.error(error);
   }
 }
