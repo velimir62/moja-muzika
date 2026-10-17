@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Moja muzika</title>
+
   <style>
     body {
       max-width: 760px;
@@ -15,6 +16,7 @@
     }
 
     audio {
+      display: block;
       width: 100%;
       margin: 12px 0;
     }
@@ -39,11 +41,16 @@
       cursor: pointer;
     }
 
-    #status { color: #555; }
+    #status {
+      color: #555;
+      overflow-wrap: anywhere;
+    }
 
-    ol { padding-left: 34px; }
+    ol {
+      padding-left: 34px;
+    }
 
-    button.track {
+    .track {
       border: 0;
       padding: 5px 8px;
       font: inherit;
@@ -53,18 +60,20 @@
       cursor: pointer;
     }
 
-    button.track:hover,
-    button.track.active {
+    .track:hover,
+    .track.active {
       color: #b00020;
       text-decoration: underline;
     }
   </style>
 </head>
+
 <body>
   <h1>Moja muzika</h1>
+
   <div id="status">Učitavam pjesme…</div>
 
-  <audio id="player" controls preload="metadata"></audio>
+  <audio id="player" controls preload="none"></audio>
 
   <div class="controls">
     <button id="start" type="button">▶ Pusti muziku</button>
@@ -91,10 +100,10 @@
     let currentIndex = -1;
     let shuffle = false;
 
-    function rawUrl(path) {
+    function makeRawUrl(path) {
       const encodedPath = path
         .split("/")
-        .map(encodeURIComponent)
+        .map(part => encodeURIComponent(part))
         .join("/");
 
       return `https://raw.githubusercontent.com/${owner}/${repository}/${branch}/${encodedPath}`;
@@ -102,12 +111,16 @@
 
     async function loadTracks() {
       try {
-        const response = await fetch(
-          `https://api.github.com/repos/${owner}/${repository}/git/trees/${branch}?recursive=1`
-        );
+        const apiUrl =
+          `https://api.github.com/repos/${owner}/${repository}` +
+          `/git/trees/${branch}?recursive=1`;
+
+        const response = await fetch(apiUrl);
 
         if (!response.ok) {
-          throw new Error(`GitHub API greška (${response.status})`);
+          throw new Error(
+            `GitHub ne može učitati listu fajlova (HTTP ${response.status}).`
+          );
         }
 
         const data = await response.json();
@@ -115,7 +128,7 @@
         tracks = (data.tree || [])
           .filter(file =>
             file.type === "blob" &&
-            /\.(mp3|mp4)$/i.test(file.path)
+            /\.mp3$/i.test(file.path)
           )
           .sort((a, b) =>
             a.path.localeCompare(b.path, undefined, {
@@ -124,37 +137,46 @@
             })
           );
 
-        if (!tracks.length) {
-          status.textContent = "Nisam pronašao MP3 ili MP4 fajlove.";
+        if (data.truncated) {
+          throw new Error("GitHub nije vratio cijelu listu fajlova.");
+        }
+
+        if (tracks.length === 0) {
+          status.textContent =
+            "Nema pronađenih MP3 fajlova. Provjeri da su u grani master.";
           return;
         }
 
-        showTracks();
-        status.textContent = `Učitano pjesama: ${tracks.length}`;
-
-        // Pokušaj pokretanja prve pjesme. Pregledač može tražiti klik korisnika.
-        playTrack(0, true);
+        renderPlaylist();
+        status.textContent =
+          `Pronađeno pjesama: ${tracks.length}. Izaberi pjesmu za puštanje.`;
       } catch (error) {
-        status.textContent = "Greška pri učitavanju: " + error.message;
+        status.textContent = "Greška: " + error.message;
       }
     }
 
-    function showTracks() {
+    function renderPlaylist() {
       const query = search.value.trim().toLocaleLowerCase();
       playlist.replaceChildren();
 
       tracks.forEach((track, index) => {
-        const name = track.path.split("/").pop();
+        const filename = track.path.split("/").pop();
 
-        if (!name.toLocaleLowerCase().includes(query)) return;
+        if (!filename.toLocaleLowerCase().includes(query)) {
+          return;
+        }
 
         const item = document.createElement("li");
         const button = document.createElement("button");
 
         button.type = "button";
         button.className = "track";
-        button.textContent = name;
-        button.classList.toggle("active", index === currentIndex);
+        button.textContent = filename;
+
+        if (index === currentIndex) {
+          button.classList.add("active");
+        }
+
         button.addEventListener("click", () => playTrack(index));
 
         item.appendChild(button);
@@ -162,30 +184,36 @@
       });
     }
 
-    function playTrack(index, automaticAttempt = false) {
-      if (index < 0 || index >= tracks.length) return;
+    async function playTrack(index) {
+      if (index < 0 || index >= tracks.length) {
+        return;
+      }
 
       currentIndex = index;
-      player.src = rawUrl(tracks[index].path);
-      showTracks();
+      const track = tracks[index];
+      const filename = track.path.split("/").pop();
 
-      player.play()
-        .then(() => {
-          status.textContent =
-            "Sada svira: " + tracks[index].path.split("/").pop();
-        })
-        .catch(() => {
-          status.textContent = automaticAttempt
-            ? "Pregledač je blokirao automatsko puštanje. Klikni „Pusti muziku“."
-            : "Klikni Play na audio playeru da pokreneš pjesmu.";
-        });
+      player.pause();
+      player.src = makeRawUrl(track.path);
+      player.load();
+      renderPlaylist();
+      status.textContent = `Učitavam: ${filename}`;
+
+      try {
+        await player.play();
+        status.textContent = `Sada svira: ${filename}`;
+      } catch (error) {
+        status.textContent =
+          `Nije pokrenuta: ${filename}. Pritisni ▶ na audio playeru.`;
+      }
     }
 
-    function nextTrack() {
-      if (!tracks.length) return;
+    function playNext() {
+      if (tracks.length === 0) return;
 
       if (shuffle && tracks.length > 1) {
         let nextIndex;
+
         do {
           nextIndex = Math.floor(Math.random() * tracks.length);
         } while (nextIndex === currentIndex);
@@ -197,36 +225,47 @@
     }
 
     document.getElementById("start").addEventListener("click", () => {
-      if (currentIndex === -1 && tracks.length) {
+      if (currentIndex === -1) {
         playTrack(0);
       } else {
         player.play().catch(() => {
-          status.textContent = "Pritisni Play na audio playeru.";
+          status.textContent =
+            "Pritisni ▶ na samom audio playeru da pokreneš pjesmu.";
         });
       }
     });
 
     document.getElementById("previous").addEventListener("click", () => {
-      if (tracks.length) {
-        playTrack((currentIndex - 1 + tracks.length) % tracks.length);
-      }
+      if (tracks.length === 0) return;
+
+      const previousIndex =
+        (currentIndex - 1 + tracks.length) % tracks.length;
+
+      playTrack(previousIndex);
     });
 
-    document.getElementById("next").addEventListener("click", nextTrack);
+    document.getElementById("next").addEventListener("click", playNext);
 
-    shuffleButton.addEventListener("click", () => {
+    document.getElementById("shuffle").addEventListener("click", () => {
       shuffle = !shuffle;
       shuffleButton.textContent =
         `🔀 Nasumično: ${shuffle ? "uključeno" : "isključeno"}`;
     });
 
-    search.addEventListener("input", showTracks);
-
-    player.addEventListener("ended", nextTrack);
+    search.addEventListener("input", renderPlaylist);
+    player.addEventListener("ended", playNext);
 
     player.addEventListener("error", () => {
+      const code = player.error ? player.error.code : 0;
+      const messages = {
+        1: "Učitavanje pjesme je prekinuto.",
+        2: "Greška pri preuzimanju pjesme.",
+        3: "Pregledač ne može pročitati ovaj MP3 fajl.",
+        4: "MP3 fajl nije pronađen na toj putanji."
+      };
+
       status.textContent =
-        "Greška pri učitavanju pjesme. Provjeri da li se fajl nalazi u repozitorijumu.";
+        messages[code] || `Greška pri učitavanju pjesme (kod ${code}).`;
     });
 
     loadTracks();
