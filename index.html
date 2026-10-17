@@ -124,7 +124,7 @@ function renderTracks() {
 
     button.className =
       "track" + (index === currentIndex ? " current" : "");
-    button.textContent = "🎵 " + titleOf(track);
+    button.textContent = (track.available ? "🎵 " : "⚠️ ") + titleOf(track) + (track.available ? "" : " (snimak nedostaje)");
     button.title = track.path;
     button.addEventListener("click", () => playTrack(index));
 
@@ -140,50 +140,89 @@ function renderTracks() {
 }
 
 async function loadTracks() {
-  say("Tražim MP3 datoteke u svim direktorijima...");
+  say("Učitavam redoslijed 001–121 i tražim sačuvane snimke...");
 
   try {
-    const url =
-      `https://api.github.com/repos/${OWNER}/${REPO}/git/trees/${BRANCH}?recursive=1`;
+    const headers = { Accept: "application/vnd.github+json" };
+    const [currentResponse, archiveResponse] = await Promise.all([
+      fetch(`https://api.github.com/repos/${OWNER}/${REPO}/git/trees/master?recursive=1`, { headers, cache: "no-store" }),
+      fetch("https://api.github.com/repos/" + OWNER + "/" + REPO +
+        "/git/trees/40ef727e4eb93f9ce26521807134fc29c254c536?recursive=1",
+        { headers, cache: "no-store" })
+    ]);
 
-    const response = await fetch(url, {
-      headers: { Accept: "application/vnd.github+json" },
-      cache: "no-store"
-    });
-
-    if (!response.ok) {
-      throw new Error("GitHub odgovor: " + response.status);
+    if (!currentResponse.ok || !archiveResponse.ok) {
+      throw new Error("GitHub odgovor: " + (!currentResponse.ok ? currentResponse.status : archiveResponse.status));
     }
 
-    const data = await response.json();
-
-    if (!Array.isArray(data.tree)) {
+    const currentData = await currentResponse.json();
+    const archiveData = await archiveResponse.json();
+    if (!Array.isArray(currentData.tree) || !Array.isArray(archiveData.tree)) {
       throw new Error("GitHub nije vratio listu datoteka.");
     }
 
-    if (data.truncated) {
-      throw new Error("GitHub lista je prevelika i skraćena.");
+    const currentFiles = currentData.tree.filter(file =>
+      file.type === "blob" && /\\.mp3$/i.test(file.path)
+    );
+    const archivedFiles = archiveData.tree.filter(file =>
+      file.type === "blob" && /\\.mp3$/i.test(file.path) && file.size > 1000
+    );
+
+    function cleanTitle(path) {
+      let name = path.split("/").pop().replace(/\\.mp3$/i, "");
+      name = name.replace(/^\\d{3}\\s*/, "");
+      name = name.replace(/^[AB]+\\d*[\\s._-]*/i, "");
+      return name.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
+        .toLocaleLowerCase().replace(/[^a-z0-9а-яёђћжшчћџљњ]/gi, "");
     }
 
-    tracks = data.tree
-      .filter(file => file.type === "blob" && /\.mp3$/i.test(file.path) && file.size > 1000)
-      .map(file => ({
+    function findArchiveMatch(file) {
+      const wanted = cleanTitle(file.path);
+      if (!wanted) return null;
+
+      const candidates = archivedFiles.map(candidate => {
+        const title = cleanTitle(candidate.path);
+        let score = 0;
+        if (title === wanted) score = 1000;
+        else if (title.length >= 4 && wanted.includes(title)) score = 700 + title.length;
+        else if (wanted.length >= 4 && title.includes(wanted)) score = 700 + wanted.length;
+        return { candidate, score };
+      }).filter(item => item.score > 0)
+        .sort((a, b) => b.score - a.score);
+
+      return candidates.length ? candidates[0].candidate : null;
+    }
+
+    tracks = currentFiles.map(file => {
+      const archiveMatch = file.size > 1000 ? null : findArchiveMatch(file);
+      const source = file.size > 1000 ? file : archiveMatch;
+      return {
         name: file.path.split("/").pop(),
         path: file.path,
-        url: "https://raw.githubusercontent.com/" +
-          OWNER + "/" + REPO + "/" + BRANCH + "/" +
-          file.path.split("/").map(encodeURIComponent).join("/")
-      }))
-      .sort((a, b) =>
-        a.path.localeCompare(b.path, "sr", { numeric: true })
-      );
+        url: source ? "https://raw.githubusercontent.com/" +
+          OWNER + "/" + REPO + "/" +
+          (file.size > 1000 ? "master" : "40ef727e4eb93f9ce26521807134fc29c254c536") + "/" +
+          source.path.split("/").map(encodeURIComponent).join("/") : "",
+        available: Boolean(source),
+        order: (file.path.match(/^(\\d{3})\\s/) || [null, "999"])[1]
+      };
+    }).sort((a, b) => {
+      const aNumbered = /^\\d{3}\\s/.test(a.name);
+      const bNumbered = /^\\d{3}\\s/.test(b.name);
+      if (aNumbered && bNumbered) return Number(a.order) - Number(b.order);
+      if (aNumbered) return -1;
+      if (bNumbered) return 1;
+      if (a.name === "M.mp3") return -1;
+      if (b.name === "M.mp3") return 1;
+      return a.name.localeCompare(b.name, "sr");
+    });
 
-    if (!tracks.length) {
-      throw new Error("Nema MP3 datoteka u grani master.");
-    }
+    if (!tracks.length) throw new Error("Nema MP3 datoteka u repozitorijumu.");
 
     renderTracks();
-    say("Pronađeno pjesama: " + tracks.length);
+    const playable = tracks.filter(track => track.available).length;
+    say("Redoslijed 001–121, zatim 2 pjesme bez broja. Dostupno za puštanje: " +
+      playable + " od " + tracks.length + ".");
     nowPlaying.textContent = "Izaberi pjesmu sa liste.";
   } catch (error) {
     console.error(error);
@@ -191,13 +230,19 @@ async function loadTracks() {
     nowPlaying.textContent = "Lista pjesama nije učitana.";
   }
 }
-
 async function playTrack(index) {
   if (busy || !tracks.length) return;
 
   busy = true;
   currentIndex = (index + tracks.length) % tracks.length;
   const track = tracks[currentIndex];
+  if (!track.available || !track.url) {
+    renderTracks();
+    nowPlaying.textContent = "⚠️ " + track.name;
+    say("Za ovu pjesmu nema ispravnog snimka ni u starijoj verziji GitHuba.");
+    busy = false;
+    return;
+  }
 
   audio.pause();
   audio.removeAttribute("src");
@@ -264,19 +309,25 @@ async function playTrack(index) {
 function nextTrack() {
   if (!tracks.length || busy) return;
 
-  let index;
-
-  if (shuffle && tracks.length > 1) {
-    do {
-      index = Math.floor(Math.random() * tracks.length);
-    } while (index === currentIndex);
-  } else {
-    index = (currentIndex + 1) % tracks.length;
+  const playableIndexes = tracks
+    .map((track, index) => track.available ? index : -1)
+    .filter(index => index >= 0);
+  if (!playableIndexes.length) {
+    say("Nema ispravnih snimaka za puštanje.");
+    return;
   }
 
+  let index;
+  if (shuffle && playableIndexes.length > 1) {
+    const choices = playableIndexes.filter(i => i !== currentIndex);
+    index = choices[Math.floor(Math.random() * choices.length)];
+  } else {
+    const startAt = currentIndex < 0 ? 0 : currentIndex + 1;
+    index = playableIndexes.find(i => i >= startAt);
+    if (index === undefined) index = playableIndexes[0];
+  }
   playTrack(index);
 }
-
 function previousTrack() {
   if (!tracks.length || busy) return;
 
