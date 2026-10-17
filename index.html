@@ -1,5 +1,82 @@
+```html
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Veljo Radio</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 18px 12px; min-height: 100vh;
+  font-family: Arial, sans-serif; color: white;
+  background: linear-gradient(135deg, #101426, #1b3150);
+}
+.container {
+  max-width: 700px; margin: 20px auto; padding: 22px;
+  background: rgba(255,255,255,.08);
+  border-radius: 22px; border: 1px solid #34425d;
+}
+h1 { text-align: center; margin-top: 0; }
+.subtitle { text-align: center; color: #bdcbe0; }
+#nowPlaying {
+  background: #17243b; border-radius: 12px;
+  padding: 15px; text-align: center; overflow-wrap: anywhere;
+}
+#status {
+  text-align: center; color: #cbd5e1;
+  font-size: 14px; margin: 14px 0; overflow-wrap: anywhere;
+}
+audio { display: block; width: 100%; margin: 14px 0; }
+.controls {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  justify-content: center; margin: 15px 0;
+}
+button {
+  border: 0; border-radius: 10px; padding: 12px 14px;
+  background: #293b59; color: white; cursor: pointer;
+  font-size: 15px;
+}
+button:hover { filter: brightness(1.2); }
+#playPause, #shuffle.active { background: #1db954; color: #071b0e; }
+input {
+  width: 100%; padding: 13px; margin: 10px 0;
+  border: 1px solid #465777; border-radius: 10px;
+  background: #17243b; color: white; font-size: 16px;
+}
+#trackList { list-style: none; padding: 0; max-height: 430px; overflow-y: auto; }
+#trackList li { margin: 6px 0; }
+.track { width: 100%; text-align: left; overflow-wrap: anywhere; }
+.track.current { background: #1db954; color: #071b0e; font-weight: bold; }
+@media(max-width:480px) {
+  .container { padding: 15px; }
+  .controls button { flex: 1 1 40%; }
+}
+</style>
+</head>
+<body>
+<main class="container">
+  <h1>🎵 Veljo Radio</h1>
+  <p class="subtitle">Tvoja muzika — radio bez kraja</p>
+
+  <div id="nowPlaying">Učitavam pjesme...</div>
+  <audio id="audio" controls preload="metadata"></audio>
+
+  <div class="controls">
+    <button id="previous">⏮ Prethodna</button>
+    <button id="playPause">▶ Pusti</button>
+    <button id="next">Sljedeća ⏭</button>
+    <button id="shuffle" aria-pressed="false">🔀 Nasumično: NE</button>
+  </div>
+
+  <div id="status" role="status" aria-live="polite">Povezivanje sa GitHubom...</div>
+  <input id="search" type="search" placeholder="🔎 Traži pjesmu...">
+  <ul id="trackList"></ul>
+</main>
 
 <script>
+"use strict";
+
 const OWNER = "velimir62";
 const REPO = "moja-muzika";
 const BRANCH = "master";
@@ -9,17 +86,20 @@ const status = document.getElementById("status");
 const nowPlaying = document.getElementById("nowPlaying");
 const trackList = document.getElementById("trackList");
 const search = document.getElementById("search");
-const playPauseButton = document.getElementById("playPause");
+const playButton = document.getElementById("playPause");
 const shuffleButton = document.getElementById("shuffle");
 
 let tracks = [];
 let currentIndex = -1;
-let shuffleOn = false;
+let shuffle = false;
+let loading = false;
 
-function sortNumerically(a, b) {
-  const na = Number(a.match(/^\s*(\d+)/)?.[1] || 0);
-  const nb = Number(b.match(/^\s*(\d+)/)?.[1] || 0);
-  return na - nb || a.localeCompare(b, "sr");
+function message(text) {
+  status.textContent = text;
+}
+
+function titleOf(track) {
+  return track.name.replace(/\.mp3$/i, "");
 }
 
 function renderTracks() {
@@ -27,121 +107,150 @@ function renderTracks() {
   trackList.replaceChildren();
 
   tracks.forEach((track, index) => {
-    if (!track.name.toLocaleLowerCase().includes(query)) return;
+    const title = titleOf(track);
+    if (!title.toLocaleLowerCase().includes(query)) return;
 
-    const item = document.createElement("li");
-    item.textContent = "🎵 " + track.name;
+    const li = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "track" +
+      (index === currentIndex ? " current" : "");
+    button.textContent = "🎵 " + title;
+    button.title = track.path;
+    button.addEventListener("click", () => playTrack(index));
 
-    if (index === currentIndex) item.classList.add("active");
-
-    item.addEventListener("click", () => playTrack(index));
-    trackList.appendChild(item);
+    li.appendChild(button);
+    trackList.appendChild(li);
   });
+
+  if (!trackList.children.length) {
+    const li = document.createElement("li");
+    li.textContent = "Nema pronađenih pjesama.";
+    trackList.appendChild(li);
+  }
+}
+
+async function loadTracks() {
+  if (loading) return;
+  loading = true;
+  message("Tražim MP3 pjesme u cijelom GitHub repozitoriju...");
+
+  try {
+    const url =
+      `https://api.github.com/repos/${OWNER}/${REPO}/git/trees/${BRANCH}?recursive=1`;
+
+    const response = await fetch(url, {
+      headers: { Accept: "application/vnd.github+json" },
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error("GitHub API greška: " + response.status);
+    }
+
+    const data = await response.json();
+
+    if (data.truncated) {
+      throw new Error(
+        "GitHub je skratio listu datoteka jer je repozitorij prevelik."
+      );
+    }
+
+    tracks = data.tree
+      .filter(file =>
+        file.type === "blob" &&
+        /\.mp3$/i.test(file.path)
+      )
+      .map(file => ({
+        name: file.path.split("/").pop(),
+        path: file.path,
+        url: "https://raw.githubusercontent.com/" +
+          OWNER + "/" + REPO + "/" + BRANCH + "/" +
+          file.path.split("/").map(encodeURIComponent).join("/")
+      }))
+      .sort((a, b) =>
+        a.path.localeCompare(b.path, "sr", { numeric: true })
+      );
+
+    if (!tracks.length) {
+      throw new Error(
+        "Nema MP3 datoteka. Provjeri da su pjesme u ovoj grani repozitorija."
+      );
+    }
+
+    renderTracks();
+    message("Pronađeno pjesama: " + tracks.length);
+    nowPlaying.textContent = "Izaberi pjesmu sa liste ili pritisni Pusti.";
+  } catch (error) {
+    console.error(error);
+    message(error.message + " Provjeri da je repozitorij javan.");
+    nowPlaying.textContent = "Pjesme nisu učitane.";
+  } finally {
+    loading = false;
+  }
 }
 
 async function playTrack(index) {
-  if (!tracks.length) return;
+  if (!tracks.length) {
+    message("Lista pjesama nije učitana.");
+    return;
+  }
 
   currentIndex = (index + tracks.length) % tracks.length;
   const track = tracks[currentIndex];
 
-  audio.pause();
   audio.src = track.url;
-  audio.load();
-
-  nowPlaying.textContent = "Pesma: " + track.name;
-  status.textContent = "Pokrećem: " + track.name;
+  nowPlaying.textContent = "🎵 " + track.name;
   renderTracks();
+  message("Puštam: " + track.name);
+  playButton.textContent = "⏸ Pauza";
 
   try {
     await audio.play();
-    status.textContent = "Sada svira: " + track.name;
   } catch (error) {
-    status.textContent = "Ne mogu pustiti: " + track.name;
-    console.error(error);
+    playButton.textContent = "▶ Pusti";
+    message("Pritisni Pusti da pokreneš pjesmu.");
   }
 }
 
-function playNext() {
+function nextTrack() {
   if (!tracks.length) return;
 
-  let nextIndex = currentIndex + 1;
-
-  if (shuffleOn && tracks.length > 1) {
+  let index;
+  if (shuffle && tracks.length > 1) {
     do {
-      nextIndex = Math.floor(Math.random() * tracks.length);
-    } while (nextIndex === currentIndex);
+      index = Math.floor(Math.random() * tracks.length);
+    } while (index === currentIndex);
+  } else {
+    index = (currentIndex + 1) % tracks.length;
   }
-
-  playTrack(nextIndex);
+  playTrack(index);
 }
 
-async function loadTracks() {
-  status.textContent = "Učitavam pesme sa GitHuba...";
-
-  const apiUrl =
-    `https://api.github.com/repos/${OWNER}/${REPO}/contents/?ref=${BRANCH}`;
-
-  try {
-    const response = await fetch(apiUrl);
-    if (!response.ok) {
-      throw new Error("GitHub odgovor: " + response.status);
-    }
-
-    const files = await response.json();
-
-    tracks = files
-      .filter(file =>
-        file.type === "file" &&
-        /\.mp3$/i.test(file.name) &&
-        file.download_url
-      )
-      .map(file => ({
-        name: file.name,
-        url:
-          `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/` +
-          file.path.split("/").map(encodeURIComponent).join("/")
-      }))
-      .sort((a, b) => sortNumerically(a.name, b.name));
-
-    if (!tracks.length) {
-      status.textContent =
-        "Nema MP3 pesama u glavnom folderu GitHuba.";
-      return;
-    }
-
-    currentIndex = 0;
-    audio.src = tracks[0].url;
-
-    nowPlaying.textContent = "Izabrana pesma: " + tracks[0].name;
-    status.textContent = "Pronađeno pesama: " + tracks.length;
-
-    renderTracks();
-  } catch (error) {
-    status.textContent = "Greška pri učitavanju: " + error.message;
-    console.error(error);
-  }
-}
-
-document.getElementById("previous").addEventListener("click", () => {
-  if (tracks.length) {
-    playTrack(currentIndex <= 0 ? tracks.length - 1 : currentIndex - 1);
-  }
-});
-
-document.getElementById("next").addEventListener("click", playNext);
-
-playPauseButton.addEventListener("click", async () => {
+function previousTrack() {
   if (!tracks.length) return;
+  if (audio.currentTime > 3) {
+    audio.currentTime = 0;
+    return;
+  }
+  playTrack((currentIndex - 1 + tracks.length) % tracks.length);
+}
+
+playButton.addEventListener("click", async () => {
+  if (!tracks.length) {
+    await loadTracks();
+    if (tracks.length) await playTrack(0);
+    return;
+  }
 
   if (audio.paused) {
-    if (!audio.src || audio.ended) {
-      await playTrack(currentIndex < 0 ? 0 : currentIndex);
+    if (!audio.src || currentIndex < 0) {
+      await playTrack(0);
     } else {
       try {
         await audio.play();
       } catch (error) {
-        status.textContent = "Pesma nije mogla da se pokrene.";
+        message("Ne mogu pokrenuti pjesmu. Pokušaj ponovo.");
       }
     }
   } else {
@@ -149,30 +258,38 @@ playPauseButton.addEventListener("click", async () => {
   }
 });
 
+document.getElementById("next").addEventListener("click", nextTrack);
+document.getElementById("previous").addEventListener("click", previousTrack);
+
 shuffleButton.addEventListener("click", () => {
-  shuffleOn = !shuffleOn;
-  shuffleButton.textContent = shuffleOn
-    ? "🔀 Nasumično: uključeno"
-    : "🔀 Nasumično: isključeno";
+  shuffle = !shuffle;
+  shuffleButton.classList.toggle("active", shuffle);
+  shuffleButton.textContent =
+    shuffle ? "🔀 Nasumično: DA" : "🔀 Nasumično: NE";
+  shuffleButton.setAttribute("aria-pressed", String(shuffle));
 });
 
 search.addEventListener("input", renderTracks);
-audio.addEventListener("ended", playNext);
 
+audio.addEventListener("ended", nextTrack);
 audio.addEventListener("play", () => {
-  playPauseButton.textContent = "⏸ Pauza";
+  playButton.textContent = "⏸ Pauza";
 });
-
 audio.addEventListener("pause", () => {
-  playPauseButton.textContent = "▶ Pusti";
+  playButton.textContent = "▶ Pusti";
 });
 
 audio.addEventListener("error", () => {
-  if (currentIndex >= 0 && tracks[currentIndex]) {
-    status.textContent =
-      "Greška pri reprodukciji: " + tracks[currentIndex].name;
+  if (currentIndex >= 0 && tracks.length > 1) {
+    message("Greška pri učitavanju pjesme. Preskačem...");
+    setTimeout(nextTrack, 1200);
+  } else {
+    message("Pjesma se ne može učitati.");
   }
 });
 
 loadTracks();
 </script>
+</body>
+</html>
+```
