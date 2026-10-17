@@ -1,266 +1,244 @@
 <!doctype html>
-<html lang="bs">
+<html lang="sr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Moja muzika</title>
   <style>
     body {
-      max-width: 760px;
+      max-width: 700px;
       margin: 30px auto;
       padding: 0 16px;
-      font: 16px/1.5 system-ui, sans-serif;
+      font: 16px Arial, sans-serif;
       color: #222;
-      background: #f7f7f7;
     }
 
-    audio {
-      display: block;
-      width: 100%;
-      margin: 12px 0;
-    }
+    h1 { margin-bottom: 18px; }
 
-    #search {
+    input[type="search"] {
       box-sizing: border-box;
       width: 100%;
-      padding: 10px;
-      margin: 8px 0;
-      font: inherit;
+      padding: 12px;
+      margin-bottom: 14px;
+      font-size: 16px;
     }
 
     .controls {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin: 8px 0;
+      margin: 12px 0;
     }
 
     button {
-      padding: 8px 12px;
+      padding: 10px 14px;
+      font-size: 16px;
       cursor: pointer;
     }
 
-    #status {
-      color: #555;
+    #nowPlaying, #status {
+      margin: 12px 0;
       overflow-wrap: anywhere;
     }
 
-    ol { padding-left: 34px; }
+    audio { width: 100%; }
 
-    button.track {
-      border: 0;
-      padding: 5px 8px;
-      font: inherit;
-      text-align: left;
-      color: #174ea6;
-      background: transparent;
+    #trackList {
+      padding-left: 28px;
+    }
+
+    #trackList li {
+      padding: 6px 4px;
       cursor: pointer;
     }
 
-    button.track:hover,
-    button.track.active {
-      color: #b00020;
-      text-decoration: underline;
+    #trackList li.active {
+      font-weight: bold;
+      background: #eee;
     }
   </style>
 </head>
 <body>
   <h1>Moja muzika</h1>
-  <div id="status">Učitavam pjesme…</div>
 
-  <audio id="player" controls preload="none"></audio>
+  <input id="search" type="search" placeholder="Pretraži pesme…">
+
+  <div id="status">Učitavam pesme…</div>
+  <div id="nowPlaying">Nijedna pesma nije izabrana</div>
+
+  <audio id="audio" controls preload="metadata"></audio>
 
   <div class="controls">
-    <button id="start" type="button">▶ Pusti muziku</button>
     <button id="previous" type="button">⏮ Prethodna</button>
-    <button id="next" type="button">Sljedeća ⏭</button>
-    <button id="shuffle" type="button">🔀 Nasumično: isključeno</button>
+    <button id="playPause" type="button">▶ Pusti</button>
+    <button id="next" type="button">Sledeća ⏭</button>
+    <button id="shuffle" type="button" aria-pressed="false">🔀 Nasumično: isključeno</button>
   </div>
 
-  <input id="search" type="search" placeholder="Pretraži pjesme…">
-  <ol id="playlist"></ol>
+  <ol id="trackList"></ol>
 
   <script>
-    const owner = "velimir62";
-    const repository = "moja-muzika";
+    const OWNER = "velimir62";
+    const REPO = "moja-muzika";
+    const BRANCH = "master";
 
-    const player = document.getElementById("player");
-    const playlist = document.getElementById("playlist");
+    const audio = document.getElementById("audio");
     const status = document.getElementById("status");
+    const nowPlaying = document.getElementById("nowPlaying");
+    const trackList = document.getElementById("trackList");
     const search = document.getElementById("search");
+    const playPauseButton = document.getElementById("playPause");
     const shuffleButton = document.getElementById("shuffle");
 
     let tracks = [];
-    let branch = "";
     let currentIndex = -1;
-    let shuffle = false;
+    let shuffleOn = false;
 
-    function fileUrl(path) {
-      const encodedPath = path
-        .split("/")
-        .map(part => encodeURIComponent(part))
-        .join("/");
-
-      return `https://raw.githubusercontent.com/${owner}/${repository}/${branch}/${encodedPath}`;
+    function sortNumerically(a, b) {
+      const numberA = parseInt(a.match(/^\s*(\d+)/)?.[1] || "0", 10);
+      const numberB = parseInt(b.match(/^\s*(\d+)/)?.[1] || "0", 10);
+      return numberA - numberB || a.localeCompare(b, "sr");
     }
 
-    async function loadTracks() {
-      for (const possibleBranch of ["master", "main"]) {
-        try {
-          const url =
-            `https://api.github.com/repos/${owner}/${repository}` +
-            `/git/trees/${possibleBranch}?recursive=1`;
-
-          const response = await fetch(url);
-
-          if (!response.ok) continue;
-
-          const data = await response.json();
-
-          if (data.message || !Array.isArray(data.tree)) continue;
-
-          branch = possibleBranch;
-          tracks = data.tree
-            .filter(file =>
-              file.type === "blob" &&
-              /\.mp3$/i.test(file.path)
-            )
-            .sort((a, b) =>
-              a.path.localeCompare(b.path, undefined, {
-                numeric: true,
-                sensitivity: "base"
-              })
-            );
-
-          if (tracks.length) {
-            renderPlaylist();
-            status.textContent =
-              `Pronađeno MP3 pjesama: ${tracks.length}. Izaberi pjesmu.`;
-            return;
-          }
-        } catch (error) {
-          // Pokušaj sljedeću granu.
-        }
-      }
-
-      status.textContent =
-        "Nisam pronašao MP3 fajlove. Provjeri da je repozitorijum javan.";
-    }
-
-    function renderPlaylist() {
+    function renderTracks() {
       const query = search.value.trim().toLocaleLowerCase();
-      playlist.replaceChildren();
+      trackList.replaceChildren();
 
-      tracks.forEach((track, index) => {
-        const name = track.path.split("/").pop();
-
+      tracks.forEach((name, index) => {
         if (!name.toLocaleLowerCase().includes(query)) return;
 
         const item = document.createElement("li");
-        const button = document.createElement("button");
+        item.textContent = name;
+        item.dataset.index = index;
 
-        button.type = "button";
-        button.className = "track";
-        button.textContent = name;
+        if (index === currentIndex) item.classList.add("active");
 
-        if (index === currentIndex) {
-          button.classList.add("active");
-        }
-
-        button.addEventListener("click", () => playTrack(index));
-        item.appendChild(button);
-        playlist.appendChild(item);
+        item.addEventListener("click", () => playTrack(index));
+        trackList.appendChild(item);
       });
     }
 
+    function getTrackUrl(name) {
+      return `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${encodeURIComponent(name)}`;
+    }
+
     async function playTrack(index) {
-      if (index < 0 || index >= tracks.length) return;
-
-      currentIndex = index;
-      const track = tracks[index];
-      const name = track.path.split("/").pop();
-
-      player.pause();
-      player.src = fileUrl(track.path);
-      player.load();
-      renderPlaylist();
-      status.textContent = `Učitavam: ${name}`;
-
-      try {
-        await player.play();
-        status.textContent = `Sada svira: ${name}`;
-      } catch (error) {
-        showFileError(name, error.name || error.message);
-      }
-    }
-
-    function showFileError(name, reason) {
-      status.replaceChildren();
-
-      const text = document.createElement("span");
-      text.textContent = `Ne mogu pustiti "${name}" (${reason}). Fajl: `;
-      status.appendChild(text);
-
-      if (currentIndex >= 0 && tracks[currentIndex]) {
-        const link = document.createElement("a");
-        link.href = fileUrl(tracks[currentIndex].path);
-        link.textContent = "otvori/preuzmi MP3";
-        link.target = "_blank";
-        link.rel = "noopener";
-        status.appendChild(link);
-      }
-    }
-
-    function nextTrack() {
       if (!tracks.length) return;
 
-      if (shuffle && tracks.length > 1) {
-        let nextIndex;
+      currentIndex = (index + tracks.length) % tracks.length;
+      const name = tracks[currentIndex];
+
+      audio.src = getTrackUrl(name);
+      nowPlaying.textContent = "Pesma: " + name;
+      status.textContent = "";
+      renderTracks();
+
+      try {
+        await audio.play();
+        playPauseButton.textContent = "⏸ Pauza";
+      } catch (error) {
+        playPauseButton.textContent = "▶ Pusti";
+        status.textContent = "Pritisni „Pusti” da pokreneš pesmu.";
+      }
+    }
+
+    function playNext() {
+      if (!tracks.length) return;
+
+      let nextIndex;
+      if (shuffleOn && tracks.length > 1) {
         do {
           nextIndex = Math.floor(Math.random() * tracks.length);
         } while (nextIndex === currentIndex);
-
-        playTrack(nextIndex);
       } else {
-        playTrack((currentIndex + 1) % tracks.length);
+        nextIndex = currentIndex + 1;
+      }
+
+      playTrack(nextIndex);
+    }
+
+    async function loadTracks() {
+      const apiUrl =
+        `https://api.github.com/repos/${OWNER}/${REPO}/contents/?ref=${BRANCH}`;
+
+      try {
+        const response = await fetch(apiUrl);
+
+        if (!response.ok) {
+          throw new Error(`GitHub odgovor: ${response.status}`);
+        }
+
+        const files = await response.json();
+
+        tracks = files
+          .filter(file => file.type === "file" && /\.mp3$/i.test(file.name))
+          .map(file => file.name)
+          .sort(sortNumerically);
+
+        if (!tracks.length) {
+          status.textContent = "Nisam pronašao MP3 fajlove u glavnom folderu repozitorijuma.";
+          return;
+        }
+
+        status.textContent = `Učitano pesama: ${tracks.length}`;
+        renderTracks();
+
+        // Učitava prvu pesmu, ali ne pokreće je automatski.
+        currentIndex = 0;
+        audio.src = getTrackUrl(tracks[currentIndex]);
+        nowPlaying.textContent = "Izabrana pesma: " + tracks[currentIndex];
+        renderTracks();
+      } catch (error) {
+        status.textContent =
+          "Nisam uspeo da učitam listu pesama. Proveri da li su MP3 fajlovi u glavnom folderu i da li je repozitorijum javan.";
+        console.error(error);
       }
     }
 
-    document.getElementById("start").addEventListener("click", () => {
-      if (currentIndex === -1) {
-        playTrack(0);
+    document.getElementById("previous").addEventListener("click", () => {
+      if (tracks.length) playTrack(currentIndex <= 0 ? tracks.length - 1 : currentIndex - 1);
+    });
+
+    document.getElementById("next").addEventListener("click", playNext);
+
+    playPauseButton.addEventListener("click", async () => {
+      if (!tracks.length) return;
+
+      if (!audio.src) {
+        await playTrack(currentIndex < 0 ? 0 : currentIndex);
+      } else if (audio.paused) {
+        try {
+          await audio.play();
+          playPauseButton.textContent = "⏸ Pauza";
+          status.textContent = "";
+        } catch (error) {
+          status.textContent = "Pesma ne može da se pusti. Proveri da li se MP3 fajl otvara direktno.";
+        }
       } else {
-        player.play().catch(error => {
-          showFileError(
-            tracks[currentIndex].path.split("/").pop(),
-            error.name || error.message
-          );
-        });
+        audio.pause();
       }
     });
-
-    document.getElementById("previous").addEventListener("click", () => {
-      if (!tracks.length) return;
-      playTrack((currentIndex - 1 + tracks.length) % tracks.length);
-    });
-
-    document.getElementById("next").addEventListener("click", nextTrack);
 
     shuffleButton.addEventListener("click", () => {
-      shuffle = !shuffle;
-      shuffleButton.textContent =
-        `🔀 Nasumično: ${shuffle ? "uključeno" : "isključeno"}`;
+      shuffleOn = !shuffleOn;
+      shuffleButton.setAttribute("aria-pressed", String(shuffleOn));
+      shuffleButton.textContent = shuffleOn
+        ? "🔀 Nasumično: uključeno"
+        : "🔀 Nasumično: isključeno";
     });
 
-    search.addEventListener("input", renderPlaylist);
-    player.addEventListener("ended", nextTrack);
+    search.addEventListener("input", renderTracks);
 
-    player.addEventListener("error", () => {
-      if (currentIndex >= 0 && tracks[currentIndex]) {
-        const name = tracks[currentIndex].path.split("/").pop();
-        const code = player.error ? player.error.code : "nepoznat";
-        showFileError(name, `greška playera ${code}`);
-      }
+    audio.addEventListener("ended", playNext);
+    audio.addEventListener("play", () => {
+      playPauseButton.textContent = "⏸ Pauza";
+    });
+    audio.addEventListener("pause", () => {
+      playPauseButton.textContent = "▶ Pusti";
+    });
+    audio.addEventListener("error", () => {
+      status.textContent = "Greška pri učitavanju pesme: " +
+        (tracks[currentIndex] || "proveri MP3 fajl i njegov naziv");
     });
 
     loadTracks();
