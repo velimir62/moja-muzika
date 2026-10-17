@@ -162,17 +162,17 @@ async function loadTracks() {
     }
 
     const currentFiles = currentData.tree.filter(file =>
-      file.type === "blob" && /\\.mp3$/i.test(file.path)
+      file.type === "blob" && /\.mp3$/i.test(file.path)
     );
     const archivedFiles = archiveData.tree.filter(file =>
-      file.type === "blob" && /\\.mp3$/i.test(file.path) && file.size > 1000
+      file.type === "blob" && /\.mp3$/i.test(file.path) && file.size > 1000
     );
 
     function cleanTitle(path) {
-      let name = path.split("/").pop().replace(/\\.mp3$/i, "");
-      name = name.replace(/^\\d{3}\\s*/, "");
-      name = name.replace(/^[AB]+\\d*[\\s._-]*/i, "");
-      return name.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "")
+      let name = path.split("/").pop().replace(/\.mp3$/i, "");
+      name = name.replace(/^\d{3}\s*/, "");
+      name = name.replace(/^[AB]+\d*[\s._-]*/i, "");
+      return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         .toLocaleLowerCase().replace(/[^a-z0-9а-яёђћжшчћџљњ]/gi, "");
     }
 
@@ -204,11 +204,11 @@ async function loadTracks() {
           (file.size > 1000 ? "master" : "40ef727e4eb93f9ce26521807134fc29c254c536") + "/" +
           source.path.split("/").map(encodeURIComponent).join("/") : "",
         available: Boolean(source),
-        order: (file.path.match(/^(\\d{3})\\s/) || [null, "999"])[1]
+        order: (file.path.match(/^(\d{3})\s/) || [null, "999"])[1]
       };
     }).sort((a, b) => {
-      const aNumbered = /^\\d{3}\\s/.test(a.name);
-      const bNumbered = /^\\d{3}\\s/.test(b.name);
+      const aNumbered = /^\d{3}\s/.test(a.name);
+      const bNumbered = /^\d{3}\s/.test(b.name);
       if (aNumbered && bNumbered) return Number(a.order) - Number(b.order);
       if (aNumbered) return -1;
       if (bNumbered) return 1;
