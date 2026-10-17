@@ -30,7 +30,7 @@ function renderTracks() {
     if (!track.name.toLocaleLowerCase().includes(query)) return;
 
     const item = document.createElement("li");
-    item.textContent = track.name;
+    item.textContent = "🎵 " + track.name;
 
     if (index === currentIndex) {
       item.classList.add("active");
@@ -61,20 +61,22 @@ async function playTrack(index) {
   } catch (error) {
     status.textContent =
       "Ne mogu pustiti: " + track.name +
-      ". Proveri fajl na GitHubu.";
-    console.error("Greška pri reprodukciji:", error);
+      ". Proveri da li MP3 postoji na GitHubu.";
+    console.error(error);
   }
 }
 
 function playNext() {
   if (!tracks.length) return;
 
-  let nextIndex = currentIndex + 1;
+  let nextIndex;
 
   if (shuffleOn && tracks.length > 1) {
     do {
       nextIndex = Math.floor(Math.random() * tracks.length);
     } while (nextIndex === currentIndex);
+  } else {
+    nextIndex = (currentIndex + 1) % tracks.length;
   }
 
   playTrack(nextIndex);
@@ -98,17 +100,19 @@ async function loadTracks() {
     tracks = files
       .filter(file =>
         file.type === "file" &&
-        /^\d{3}\s+.+\.mp3$/i.test(file.name)
+        file.name.toLowerCase().endsWith(".mp3")
       )
       .map(file => ({
         name: file.name,
-        url: file.download_url
+        url:
+          `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/` +
+          file.path.split("/").map(encodeURIComponent).join("/")
       }))
       .sort((a, b) => sortNumerically(a.name, b.name));
 
     if (!tracks.length) {
       status.textContent =
-        "Nema pronađenih pesama. Proveri folder, nazive i nastavak .mp3.";
+        "Nema MP3 pesama u glavnom folderu GitHuba.";
       return;
     }
 
@@ -119,19 +123,15 @@ async function loadTracks() {
     status.textContent = "Pronađeno pesama: " + tracks.length;
 
     renderTracks();
-
   } catch (error) {
-    status.textContent =
-      "Greška pri učitavanju: " + error.message;
+    status.textContent = "Greška: " + error.message;
     console.error(error);
   }
 }
 
 document.getElementById("previous").addEventListener("click", () => {
   if (tracks.length) {
-    playTrack(
-      currentIndex <= 0 ? tracks.length - 1 : currentIndex - 1
-    );
+    playTrack(currentIndex <= 0 ? tracks.length - 1 : currentIndex - 1);
   }
 });
 
@@ -140,19 +140,18 @@ document.getElementById("next").addEventListener("click", playNext);
 playPauseButton.addEventListener("click", async () => {
   if (!tracks.length) return;
 
-  try {
-    if (audio.paused) {
-      if (audio.ended || !audio.src) {
-        await playTrack(currentIndex < 0 ? 0 : currentIndex);
-      } else {
-        await audio.play();
-      }
+  if (audio.paused) {
+    if (!audio.src || audio.ended) {
+      await playTrack(currentIndex < 0 ? 0 : currentIndex);
     } else {
-      audio.pause();
+      try {
+        await audio.play();
+      } catch (error) {
+        status.textContent = "Pesma nije mogla da se pokrene.";
+      }
     }
-  } catch (error) {
-    status.textContent = "Pesma nije mogla da se pokrene.";
-    console.error(error);
+  } else {
+    audio.pause();
   }
 });
 
@@ -178,7 +177,6 @@ audio.addEventListener("error", () => {
   if (currentIndex >= 0 && tracks[currentIndex]) {
     status.textContent =
       "Greška pri reprodukciji: " + tracks[currentIndex].name;
-    console.error("Audio greška:", audio.error);
   }
 });
 
