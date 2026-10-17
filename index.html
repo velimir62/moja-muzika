@@ -143,15 +143,36 @@ async function loadTracks() {
 
   try {
     const headers = { Accept: "application/vnd.github+json" };
+    // Git Trees API traži SHA stabla, a ne SHA commita.
+    // Prvo učitajmo commit-e, pa iz njih stvarne tree SHA vrijednosti.
+    const currentCommitResponse = await fetch(
+      `https://api.github.com/repos/${OWNER}/${REPO}/commits/master`,
+      { headers, cache: "no-store" }
+    );
+    const archiveCommitResponse = await fetch(
+      "https://api.github.com/repos/" + OWNER + "/" + REPO +
+        "/commits/40ef727e4eb93f9ce26521807134fc29c254c536",
+      { headers, cache: "no-store" }
+    );
+
+    if (!currentCommitResponse.ok || !archiveCommitResponse.ok) {
+      throw new Error("GitHub commit odgovor: " +
+        (!currentCommitResponse.ok ? currentCommitResponse.status : archiveCommitResponse.status));
+    }
+
+    const [currentCommit, archiveCommit] = await Promise.all([
+      currentCommitResponse.json(), archiveCommitResponse.json()
+    ]);
     const [currentResponse, archiveResponse] = await Promise.all([
-      fetch(`https://api.github.com/repos/${OWNER}/${REPO}/git/trees/master?recursive=1`, { headers, cache: "no-store" }),
-      fetch("https://api.github.com/repos/" + OWNER + "/" + REPO +
-        "/git/trees/40ef727e4eb93f9ce26521807134fc29c254c536?recursive=1",
+      fetch(`https://api.github.com/repos/${OWNER}/${REPO}/git/trees/${currentCommit.commit.tree.sha}?recursive=1`,
+        { headers, cache: "no-store" }),
+      fetch(`https://api.github.com/repos/${OWNER}/${REPO}/git/trees/${archiveCommit.commit.tree.sha}?recursive=1`,
         { headers, cache: "no-store" })
     ]);
 
     if (!currentResponse.ok || !archiveResponse.ok) {
-      throw new Error("GitHub odgovor: " + (!currentResponse.ok ? currentResponse.status : archiveResponse.status));
+      throw new Error("GitHub lista datoteka: " +
+        (!currentResponse.ok ? currentResponse.status : archiveResponse.status));
     }
 
     const currentData = await currentResponse.json();
