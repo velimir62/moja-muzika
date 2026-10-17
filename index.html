@@ -1,1653 +1,183 @@
-<!DOCTYPE html>
-<html lang="hr">
+<!doctype html>
+<html lang="bs">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>VELJO-RADIO</title>
-
-<style>
-
-* {
-    box-sizing: border-box;
-}
-
-body {
-    margin: 0;
-    padding: 20px;
-    background: #0b1020;
-    color: #eee;
-    font-family: Arial, Helvetica, sans-serif;
-}
-
-.container {
-    max-width: 850px;
-    margin: auto;
-}
-
-h1 {
-    text-align: center;
-    color: #e94560;
-    font-size: 38px;
-    margin: 10px 0 5px;
-}
-
-.subtitle {
-    text-align: center;
-    color: #999;
-    margin-bottom: 20px;
-}
-
-.nav {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.nav a {
-    flex: 1;
-    padding: 14px;
-    text-align: center;
-    text-decoration: none;
-    color: white;
-    background: #163d6b;
-    border-radius: 9px;
-    font-weight: bold;
-}
-
-.nav a.active {
-    background: #e94560;
-}
-
-.player-box {
-    background: #16213e;
-    padding: 20px;
-    border-radius: 15px;
-}
-
-.now-playing {
-    text-align: center;
-    color: #e94560;
-    font-weight: bold;
-    font-size: 18px;
-    margin-bottom: 15px;
-    min-height: 25px;
-}
-
-audio {
-    width: 100%;
-    display: block;
-}
-
-.buttons {
-    display: flex;
-    gap: 10px;
-    margin-top: 15px;
-}
-
-button {
-    flex: 1;
-    padding: 14px;
-    border: 0;
-    border-radius: 8px;
-    background: #e94560;
-    color: white;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.2s;
-}
-
-button:hover {
-    background: #ff5570;
-}
-
-/* =========================================================
-   RANDOM PLAY AKTIVAN
-   ========================================================= */
-
-button.random-active {
-    background: #50fa7b;
-    color: #08120c;
-}
-
-button.random-active:hover {
-    background: #6cff91;
-}
-
-.search {
-    width: 100%;
-    margin-top: 20px;
-    padding: 14px;
-    border: 0;
-    border-radius: 8px;
-    background: #16213e;
-    color: white;
-    font-size: 16px;
-    outline: none;
-}
-
-.search::placeholder {
-    color: #888;
-}
-
-.playlist-title {
-    margin-top: 25px;
-    color: #e94560;
-    font-size: 20px;
-    font-weight: bold;
-}
-
-#playlist {
-    list-style: none;
-    padding: 0;
-}
-
-#playlist li {
-    background: #16213e;
-    margin: 8px 0;
-    padding: 14px 16px;
-    border-radius: 9px;
-    cursor: pointer;
-    transition: 0.2s;
-}
-
-#playlist li:hover {
-    background: #0f3460;
-}
-
-#playlist li.active {
-    background: #0f3460;
-    border-left: 5px solid #e94560;
-}
-
-.status {
-    text-align: center;
-    color: #888;
-    margin-top: 20px;
-}
-
-.error {
-    color: #ff4d6d;
-}
-
-.ok {
-    color: #50fa7b;
-}
-
-@media (max-width: 600px) {
-
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moja muzika</title>
+  <style>
     body {
-        padding: 10px;
+      max-width: 760px;
+      margin: 30px auto;
+      padding: 0 16px;
+      font: 16px/1.5 system-ui, sans-serif;
+      color: #222;
+      background: #f7f7f7;
     }
 
-    h1 {
-        font-size: 29px;
+    h1 { margin-bottom: 8px; }
+
+    audio {
+      position: sticky;
+      top: 0;
+      width: 100%;
+      margin: 12px 0;
+      background: #f7f7f7;
     }
 
-    .nav,
-    .buttons {
-        flex-direction: column;
-    }
-}
+    #status { color: #555; }
 
-</style>
+    ol {
+      padding-left: 34px;
+    }
+
+    li { padding: 3px 0; }
+
+    button.track {
+      border: 0;
+      padding: 5px 8px;
+      font: inherit;
+      text-align: left;
+      color: #174ea6;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    button.track:hover,
+    button.track.active {
+      color: #b00020;
+      text-decoration: underline;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin: 8px 0;
+    }
+
+    .controls button {
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+  </style>
 </head>
-
 <body>
-
-<div class="container">
-
-    <h1>🎵 VELJO-RADIO</h1>
-
-    <div class="subtitle">
-        My Media Center
-    </div>
-
-    <div class="nav">
-
-        <a href="https://velimir62.github.io/moja-muzika/"
-           class="active">
-            🎵 VELJO-RADIO
-        </a>
-
-        <a href="https://velimir62.github.io/veljo-video-muzika/">
-            🎬 VELJO-VIDEO
-        </a>
-
-    </div>
-
-
-    <div class="player-box">
-
-        <div id="nowPlaying" class="now-playing">
-            🎵 Učitavanje muzike...
-        </div>
-
-        <audio
-            id="player"
-            controls
-            preload="metadata">
-        </audio>
-
-
-        <div class="buttons">
-
-            <button id="play">
-                ▶ Pokreni
-            </button>
-
-            <button id="prev">
-                ⏮ Prethodna
-            </button>
-
-            <button id="next">
-                Sljedeća ⏭
-            </button>
-
-            <button id="randomize">
-                🔀 Random Play
-            </button>
-
-        </div>
-
-    </div>
-
-
-    <input
-        id="search"
-        class="search"
-        type="search"
-        placeholder="🔎 Pretraži pjesme..."
-        autocomplete="off"
-    >
-
-
-    <div class="playlist-title">
-        🎵 Muzička lista
-    </div>
-
-
-    <ul id="playlist"></ul>
-
-
-    <div id="status" class="status">
-        Učitavanje...
-    </div>
-
-</div>
-
-
-<script>
-
-/* =========================================================
-   PODEŠAVANJA
-   ========================================================= */
-
-const USER = "velimir62";
-
-const REPO = "moja-muzika";
-
-const BRANCH = "master";
-
-const API =
-    "https://api.github.com/repos/" +
-    USER +
-    "/" +
-    REPO +
-    "/contents/?ref=" +
-    BRANCH;
-
-
-/* =========================================================
-   ELEMENTI
-   ========================================================= */
-
-const player =
-    document.getElementById("player");
-
-const playlist =
-    document.getElementById("playlist");
-
-const nowPlaying =
-    document.getElementById("nowPlaying");
-
-const status =
-    document.getElementById("status");
-
-const search =
-    document.getElementById("search");
-
-const playButton =
-    document.getElementById("play");
-
-const prevButton =
-    document.getElementById("prev");
-
-const nextButton =
-    document.getElementById("next");
-
-const randomizeButton =
-    document.getElementById("randomize");
-
-
-/* =========================================================
-   VARIJABLE
-   ========================================================= */
-
-let songs = [];
-
-let filteredSongs = [];
-
-let current = -1;
-
-
-/*
-   Random Play
-*/
-
-let randomPlay = false;
-
-
-/*
-   Lista indeksa pjesama koje još nisu
-   puštene u trenutnom random krugu.
-*/
-
-let randomQueue = [];
-
-
-/*
-   ========================================================
-   M.mp3 - POSEBNA PJESMA
-   ========================================================
-
-   M.mp3 se automatski pušta nakon svake
-   dvije normalne pjesme.
-
-   Primjer:
-
-   Pjesma 1
-   Pjesma 2
-   M.mp3
-   Pjesma 3
-   Pjesma 4
-   M.mp3
-   ...
-*/
-
-let mSong = null;
-
-let normalSongsPlayed = 0;
-
-let playingM = false;
-
-
-/* =========================================================
-   UČITAJ MUZIKU SA GITHUBA
-   ========================================================= */
-
-async function loadSongs() {
-
-    status.textContent =
-        "Učitavanje muzike...";
-
-
-    const response =
-        await fetch(API, {
-
-            cache: "no-store",
-
-            headers: {
-                "Accept":
-                    "application/vnd.github+json"
-            }
-
+  <h1>Moja muzika</h1>
+  <div id="status">Učitavam pjesme…</div>
+
+  <audio id="player" controls preload="metadata"></audio>
+
+  <div class="controls">
+    <button id="previous" type="button">⏮ Prethodna</button>
+    <button id="next" type="button">Sljedeća ⏭</button>
+  </div>
+
+  <ol id="playlist"></ol>
+
+  <script>
+    const owner = "velimir62";
+    const repository = "moja-muzika";
+    const branch = "master";
+
+    const player = document.getElementById("player");
+    const playlist = document.getElementById("playlist");
+    const status = document.getElementById("status");
+
+    let tracks = [];
+    let currentIndex = -1;
+
+    function rawUrl(path) {
+      return "https://raw.githubusercontent.com/" +
+        owner + "/" + repository + "/" + branch + "/" +
+        path.split("/").map(encodeURIComponent).join("/");
+    }
+
+    async function loadTracks() {
+      try {
+        const response = await fetch(
+          `https://api.github.com/repos/${owner}/${repository}/git/trees/${branch}?recursive=1`
+        );
+
+        if (!response.ok) {
+          throw new Error(`GitHub API greška (${response.status})`);
+        }
+
+        const data = await response.json();
+
+        tracks = (data.tree || [])
+          .filter(item =>
+            item.type === "blob" &&
+            /\.(mp3|mp4)$/i.test(item.path)
+          )
+          .sort((a, b) =>
+            a.path.localeCompare(b.path, undefined, {
+              numeric: true,
+              sensitivity: "base"
+            })
+          );
+
+        if (!tracks.length) {
+          status.textContent = "Nisam pronašao nijedan MP3 ili MP4 fajl.";
+          return;
+        }
+
+        playlist.replaceChildren();
+
+        tracks.forEach((track, index) => {
+          const item = document.createElement("li");
+          const button = document.createElement("button");
+
+          button.type = "button";
+          button.className = "track";
+          button.textContent = track.path.split("/").pop();
+          button.addEventListener("click", () => playTrack(index));
+
+          item.appendChild(button);
+          playlist.appendChild(item);
         });
 
-
-    if (!response.ok) {
-
-        throw new Error(
-            "GitHub greška: " +
-            response.status
-        );
-
+        status.textContent = `Učitano pjesama: ${tracks.length}`;
+      } catch (error) {
+        status.textContent =
+          "Greška pri učitavanju liste: " + error.message;
+      }
     }
 
+    function playTrack(index) {
+      if (index < 0 || index >= tracks.length) return;
 
-    const files =
-        await response.json();
+      currentIndex = index;
+      player.src = rawUrl(tracks[index].path);
+      player.play().catch(() => {
+        status.textContent =
+          "Pjesma nije mogla automatski da se pokrene. Pritisni Play.";
+      });
 
+      document.querySelectorAll(".track").forEach((button, i) => {
+        button.classList.toggle("active", i === index);
+      });
 
-    if (!Array.isArray(files)) {
-
-        throw new Error(
-            "GitHub nije vratio listu fajlova."
-        );
-
+      status.textContent = "Sada svira: " + tracks[index].path.split("/").pop();
     }
 
-
-    /*
-       Uzimamo samo MP3 fajlove
-       iz glavnog foldera.
-    */
-
-    songs =
-        files
-            .filter(file =>
-                file.type === "file" &&
-                typeof file.name === "string" &&
-                /\.mp3$/i.test(file.name) &&
-                file.download_url
-            )
-            .map(file => ({
-
-                name: file.name,
-
-                title:
-                    file.name.replace(
-                        /\.mp3$/i,
-                        ""
-                    ),
-
-                url:
-                    file.download_url
-
-            }));
-
-
-    /*
-       Sortiraj po imenu.
-    */
-
-    songs.sort((a, b) =>
-        a.title.localeCompare(
-            b.title,
-            undefined,
-            {
-                numeric: true,
-                sensitivity: "base"
-            }
-        )
-    );
-
-
-    /* =====================================================
-       PRONAĐI M.mp3
-       ===================================================== */
-
-    const specialM =
-        songs.find(song =>
-            song.name.toLowerCase() === "m.mp3"
-        );
-
-
-    if (specialM) {
-
-        mSong = specialM;
-
-
-        /*
-           M.mp3 uklanjamo iz normalne liste.
-           Zato se neće pojavljivati među pjesmama.
-        */
-
-        songs =
-            songs.filter(song =>
-                song.name.toLowerCase() !== "m.mp3"
-            );
-
-    }
-
-
-    filteredSongs =
-        [...songs];
-
-
-    /*
-       Napravi početni random redoslijed.
-    */
-
-    resetRandomQueue();
-
-}
-
-
-/* =========================================================
-   RANDOM QUEUE
-   ========================================================= */
-
-/*
-   Napravi novi nasumični redoslijed.
-*/
-
-function resetRandomQueue() {
-
-    randomQueue =
-        filteredSongs.map(
-            (_, index) => index
-        );
-
-
-    /*
-       Fisher-Yates shuffle
-    */
-
-    for (
-        let i = randomQueue.length - 1;
-        i > 0;
-        i--
-    ) {
-
-        const j =
-            Math.floor(
-                Math.random() * (i + 1)
-            );
-
-
-        [
-            randomQueue[i],
-            randomQueue[j]
-        ] =
-        [
-            randomQueue[j],
-            randomQueue[i]
-        ];
-
-    }
-
-}
-
-
-/*
-   Vrati sljedeću random pjesmu.
-*/
-
-function getRandomNextIndex() {
-
-    /*
-       Ako nema više pjesama,
-       napravi novi krug.
-    */
-
-    if (randomQueue.length === 0) {
-
-        resetRandomQueue();
-
-    }
-
-
-    /*
-       Uzmi prvu iz random reda.
-    */
-
-    const nextIndex =
-        randomQueue.shift();
-
-
-    return nextIndex;
-
-}
-
-
-/* =========================================================
-   PRIKAŽI PLAYLISTU
-   ========================================================= */
-
-function renderPlaylist() {
-
-    playlist.innerHTML = "";
-
-
-    filteredSongs.forEach(
-        (song, index) => {
-
-            const li =
-                document.createElement("li");
-
-
-            li.textContent =
-                "🎵 " +
-                song.title;
-
-
-            li.addEventListener(
-                "click",
-                () => {
-
-                    /*
-                       Ako korisnik ručno izabere
-                       pjesmu u Random modu,
-                       uklanjamo je iz random reda.
-                    */
-
-                    if (randomPlay) {
-
-                        randomQueue =
-                            randomQueue.filter(
-                                item =>
-                                    item !== index
-                            );
-
-                    }
-
-
-                    /*
-                       Ručni izbor normalne pjesme
-                       nije M.mp3, pa je ovo normalna
-                       reprodukcija.
-                    */
-
-                    playingM = false;
-
-
-                    playSong(index);
-
-
-                    player.play().catch(
-                        () => {}
-                    );
-
-                }
-            );
-
-
-            playlist.appendChild(li);
-
-        }
-    );
-
-
-    status.innerHTML =
-        '<span class="ok">✓ ' +
-        filteredSongs.length +
-        " pjesama</span>";
-
-}
-
-
-/* =========================================================
-   PUSTI M.mp3
-   ========================================================= */
-
-function playMSong() {
-
-    if (!mSong) {
-
-        return;
-
-    }
-
-
-    playingM = true;
-
-
-    player.src =
-        mSong.url;
-
-
-    player.load();
-
-
-    nowPlaying.textContent =
-        "🎵 " +
-        mSong.title +
-        " 🔄";
-
-
-    document.title =
-        mSong.title +
-        " - VELJO-RADIO";
-
-
-    /*
-       Ukloni označenu normalnu pjesmu
-       iz playliste.
-    */
-
-    Array.from(
-        playlist.children
-    ).forEach(li => {
-
-        li.classList.remove(
-            "active"
-        );
-
+    document.getElementById("previous").addEventListener("click", () => {
+      if (tracks.length) {
+        playTrack((currentIndex - 1 + tracks.length) % tracks.length);
+      }
     });
 
-}
-
-
-/* =========================================================
-   POKRENI PJESMU
-   ========================================================= */
-
-function playSong(index) {
-
-    if (
-        index < 0 ||
-        index >= filteredSongs.length
-    ) {
-
-        return;
-
-    }
-
-
-    playingM = false;
-
-
-    current = index;
-
-
-    const song =
-        filteredSongs[current];
-
-
-    player.src =
-        song.url;
-
-
-    player.load();
-
-
-    nowPlaying.textContent =
-        "🎵 " +
-        song.title +
-        " (" +
-        (current + 1) +
-        " / " +
-        filteredSongs.length +
-        ")" +
-        (randomPlay
-            ? " 🔀"
-            : "");
-
-
-    document.title =
-        song.title +
-        " - VELJO-RADIO";
-
-
-    /*
-       Označi aktivnu pjesmu.
-    */
-
-    Array.from(
-        playlist.children
-    ).forEach(li => {
-
-        li.classList.remove(
-            "active"
-        );
-
+    document.getElementById("next").addEventListener("click", () => {
+      if (tracks.length) {
+        playTrack((currentIndex + 1) % tracks.length);
+      }
     });
 
-
-    const active =
-        playlist.children[current];
-
-
-    if (active) {
-
-        active.classList.add(
-            "active"
-        );
-
-
-        active.scrollIntoView({
-
-            behavior: "smooth",
-
-            block: "center"
-
-        });
-
-    }
-
-}
-
-
-/* =========================================================
-   PLAY
-   ========================================================= */
-
-playButton.addEventListener(
-    "click",
-    () => {
-
-        if (
-            filteredSongs.length === 0
-        ) {
-
-            return;
-
-        }
-
-
-        if (current === -1) {
-
-            if (randomPlay) {
-
-                const randomIndex =
-                    getRandomNextIndex();
-
-                playSong(randomIndex);
-
-            } else {
-
-                playSong(0);
-
-            }
-
-        }
-
-
-        player.play().catch(
-            () => {}
-        );
-
-    }
-);
-
-
-/* =========================================================
-   PRETHODNA
-   ========================================================= */
-
-prevButton.addEventListener(
-    "click",
-    () => {
-
-        if (
-            current > 0
-        ) {
-
-            playingM = false;
-
-            playSong(
-                current - 1
-            );
-
-
-            player.play().catch(
-                () => {}
-            );
-
-        }
-
-    }
-);
-
-
-/* =========================================================
-   SLJEDEĆA
-   ========================================================= */
-
-nextButton.addEventListener(
-    "click",
-    () => {
-
-        if (
-            filteredSongs.length === 0
-        ) {
-
-            return;
-
-        }
-
-
-        /*
-           Ako je trenutno M.mp3,
-           nastavi na sljedeću normalnu pjesmu.
-        */
-
-        if (playingM) {
-
-            playingM = false;
-
-
-            if (randomPlay) {
-
-                const randomIndex =
-                    getRandomNextIndex();
-
-
-                playSong(
-                    randomIndex
-                );
-
-            } else if (
-                current >= 0 &&
-                current <
-                filteredSongs.length - 1
-            ) {
-
-                playSong(
-                    current + 1
-                );
-
-            } else {
-
-                playSong(0);
-
-            }
-
-
-            player.play().catch(
-                () => {}
-            );
-
-
-            return;
-
-        }
-
-
-        /*
-           RANDOM PLAY
-        */
-
-        if (randomPlay) {
-
-            const randomIndex =
-                getRandomNextIndex();
-
-
-            playSong(
-                randomIndex
-            );
-
-
-            player.play().catch(
-                () => {}
-            );
-
-
-            return;
-
-        }
-
-
-        /*
-           NORMALNI MOD
-        */
-
-        if (
-            current >= 0 &&
-            current <
-                filteredSongs.length - 1
-        ) {
-
-            playSong(
-                current + 1
-            );
-
-
-            player.play().catch(
-                () => {}
-            );
-
-        }
-
-    }
-);
-
-
-/* =========================================================
-   RANDOM PLAY ON / OFF
-   ========================================================= */
-
-randomizeButton.addEventListener(
-    "click",
-    () => {
-
-        /*
-           Promijeni stanje.
-        */
-
-        randomPlay =
-            !randomPlay;
-
-
-        if (randomPlay) {
-
-            /*
-               RANDOM ON
-            */
-
-            randomizeButton.classList.add(
-                "random-active"
-            );
-
-
-            randomizeButton.textContent =
-                "🔀 Random ON";
-
-
-            /*
-               Napravi novi random red.
-            */
-
-            resetRandomQueue();
-
-
-            /*
-               Ako trenutno postoji pjesma,
-               ukloni je iz random reda.
-               Ne želimo da se odmah ponovi.
-            */
-
-            if (current >= 0) {
-
-                randomQueue =
-                    randomQueue.filter(
-                        index =>
-                            index !== current
-                    );
-
-            }
-
-
-            nowPlaying.textContent =
-                "🔀 Random Play AKTIVAN";
-
-
-            /*
-               Ako ništa trenutno ne svira,
-               odmah pokreni random pjesmu.
-            */
-
-            if (current === -1) {
-
-                const randomIndex =
-                    getRandomNextIndex();
-
-
-                playSong(
-                    randomIndex
-                );
-
-
-                player.play().catch(
-                    () => {}
-                );
-
-            }
-
-        } else {
-
-            /*
-               RANDOM OFF
-            */
-
-            randomizeButton.classList.remove(
-                "random-active"
-            );
-
-
-            randomizeButton.textContent =
-                "🔀 Random Play";
-
-
-            nowPlaying.textContent =
-                current >= 0
-                    ? "🎵 " +
-                      filteredSongs[current].title
-                    : "🎵 Izaberi pjesmu";
-
-        }
-
-    }
-);
-
-
-/* =========================================================
-   AUTOMATSKI SLJEDEĆA
-   =========================================================
-
-   Redoslijed:
-
-   Pjesma 1
-   Pjesma 2
-   M.mp3
-   Pjesma 3
-   Pjesma 4
-   M.mp3
-   Pjesma 5
-   Pjesma 6
-   M.mp3
-
-   Isto vrijedi i kada je Random Play uključen.
-*/
-
-player.addEventListener(
-    "ended",
-    () => {
-
-        if (
-            filteredSongs.length === 0
-        ) {
-
-            return;
-
-        }
-
-
-        /* =================================================
-           AKO JE ZAVRŠIO M.mp3
-           ================================================= */
-
-        if (playingM) {
-
-            playingM = false;
-
-
-            /*
-               Nakon M.mp3 nastavljamo
-               sa sljedećom normalnom pjesmom.
-            */
-
-            if (randomPlay) {
-
-                const randomIndex =
-                    getRandomNextIndex();
-
-
-                playSong(
-                    randomIndex
-                );
-
-            } else {
-
-                if (
-                    current >= 0 &&
-                    current <
-                    filteredSongs.length - 1
-                ) {
-
-                    playSong(
-                        current + 1
-                    );
-
-                } else {
-
-                    /*
-                       Ako smo došli do kraja liste,
-                       počni ponovo.
-                    */
-
-                    playSong(0);
-
-                }
-
-            }
-
-
-            player.play().catch(
-                () => {}
-            );
-
-
-            return;
-
-        }
-
-
-        /* =================================================
-           ZAVRŠILA JE NORMALNA PJESMA
-           ================================================= */
-
-        normalSongsPlayed++;
-
-
-        /* =================================================
-           NAKON SVAKIH 2 PJESME PUSTI M.mp3
-           ================================================= */
-
-        if (
-            normalSongsPlayed >= 2 &&
-            mSong
-        ) {
-
-            normalSongsPlayed = 0;
-
-
-            playMSong();
-
-
-            player.play().catch(
-                () => {}
-            );
-
-
-            return;
-
-        }
-
-
-        /* =================================================
-           RANDOM PLAY
-           ================================================= */
-
-        if (randomPlay) {
-
-            const randomIndex =
-                getRandomNextIndex();
-
-
-            playSong(
-                randomIndex
-            );
-
-
-            player.play().catch(
-                () => {}
-            );
-
-
-            return;
-
-        }
-
-
-        /* =================================================
-           NORMALNI MOD
-           ================================================= */
-
-        if (
-            current >= 0 &&
-            current <
-            filteredSongs.length - 1
-        ) {
-
-            playSong(
-                current + 1
-            );
-
-
-            player.play().catch(
-                () => {}
-            );
-
-        } else {
-
-            /*
-               Kraj liste.
-               Počni ponovo.
-            */
-
-            normalSongsPlayed = 0;
-
-
-            playSong(0);
-
-
-            player.play().catch(
-                () => {}
-            );
-
-        }
-
-    }
-);
-
-
-/* =========================================================
-   AUDIO GREŠKA
-   ========================================================= */
-
-player.addEventListener(
-    "error",
-    () => {
-
-        if (playingM && mSong) {
-
-            nowPlaying.innerHTML =
-                '<span class="error">' +
-                "❌ Ne mogu učitati: " +
-                mSong.title +
-                "</span>";
-
-            return;
-
-        }
-
-
-        if (
-            current >= 0 &&
-            filteredSongs[current]
-        ) {
-
-            nowPlaying.innerHTML =
-                '<span class="error">' +
-                "❌ Ne mogu učitati: " +
-                filteredSongs[current].title +
-                "</span>";
-
-        }
-
-    }
-);
-
-
-/* =========================================================
-   PRETRAGA
-   ========================================================= */
-
-search.addEventListener(
-    "input",
-    () => {
-
-        const text =
-            search.value
-                .trim()
-                .toLocaleLowerCase();
-
-
-        filteredSongs =
-            songs.filter(song =>
-                song.title
-                    .toLocaleLowerCase()
-                    .includes(text)
-            );
-
-
-        current = -1;
-
-
-        /*
-           Pošto se lista promijenila,
-           napravimo novi random red.
-        */
-
-        resetRandomQueue();
-
-
-        /*
-           Resetuj brojanje dvije pjesme.
-        */
-
-        normalSongsPlayed = 0;
-
-        playingM = false;
-
-
-        renderPlaylist();
-
-
-        if (
-            filteredSongs.length > 0
-        ) {
-
-            nowPlaying.textContent =
-                randomPlay
-                    ? "🔀 Izaberi random pjesmu"
-                    : "🎵 Izaberi pjesmu";
-
-        }
-
-    }
-);
-
-
-/* =========================================================
-   TIPKE NA TASTATURI
-   ========================================================= */
-
-document.addEventListener(
-    "keydown",
-    event => {
-
-        /*
-           Ne reaguj dok korisnik piše
-           u search polje.
-        */
-
-        if (
-            event.target.tagName === "INPUT"
-        ) {
-
-            return;
-
-        }
-
-
-        /*
-           SLJEDEĆA
-        */
-
-        if (
-            event.key === "ArrowRight"
-        ) {
-
-            if (
-                filteredSongs.length === 0
-            ) {
-
-                return;
-
-            }
-
-
-            if (playingM) {
-
-                playingM = false;
-
-
-                if (randomPlay) {
-
-                    const randomIndex =
-                        getRandomNextIndex();
-
-
-                    playSong(
-                        randomIndex
-                    );
-
-                } else if (
-                    current <
-                    filteredSongs.length - 1
-                ) {
-
-                    playSong(
-                        current + 1
-                    );
-
-                } else {
-
-                    playSong(0);
-
-                }
-
-
-                player.play().catch(
-                    () => {}
-                );
-
-
-                return;
-
-            }
-
-
-            if (randomPlay) {
-
-                const randomIndex =
-                    getRandomNextIndex();
-
-
-                playSong(
-                    randomIndex
-                );
-
-
-                player.play().catch(
-                    () => {}
-                );
-
-            } else if (
-                current <
-                filteredSongs.length - 1
-            ) {
-
-                playSong(
-                    current + 1
-                );
-
-
-                player.play().catch(
-                    () => {}
-                );
-
-            }
-
-        }
-
-
-        /*
-           PRETHODNA
-        */
-
-        if (
-            event.key === "ArrowLeft" &&
-            current > 0
-        ) {
-
-            playingM = false;
-
-
-            playSong(
-                current - 1
-            );
-
-
-            player.play().catch(
-                () => {}
-            );
-
-        }
-
-
-        /*
-           SPACE = PLAY / PAUSE
-        */
-
-        if (
-            event.code === "Space"
-        ) {
-
-            event.preventDefault();
-
-
-            if (
-                player.paused
-            ) {
-
-                if (
-                    current === -1
-                ) {
-
-                    if (randomPlay) {
-
-                        const randomIndex =
-                            getRandomNextIndex();
-
-
-                        playSong(
-                            randomIndex
-                        );
-
-                    } else {
-
-                        playSong(0);
-
-                    }
-
-                }
-
-
-                player.play().catch(
-                    () => {}
-                );
-
-            } else {
-
-                player.pause();
-
-            }
-
-        }
-
-    }
-);
-
-
-/* =========================================================
-   START
-   ========================================================= */
-
-async function start() {
-
-    try {
-
-        await loadSongs();
-
-
-        if (
-            songs.length === 0
-        ) {
-
-            nowPlaying.textContent =
-                "🎵 Nema MP3 fajlova";
-
-
-            status.innerHTML =
-                '<span class="error">' +
-                "Nijedan MP3 nije pronađen." +
-                "</span>";
-
-
-            return;
-
-        }
-
-
-        renderPlaylist();
-
-
-        nowPlaying.textContent =
-            "🎵 " +
-            songs.length +
-            " pjesama spremno";
-
-
-    } catch (error) {
-
-        console.error(error);
-
-
-        nowPlaying.innerHTML =
-            '<span class="error">' +
-            "❌ Greška pri učitavanju muzike" +
-            "</span>";
-
-
-        status.innerHTML =
-            '<span class="error">' +
-            error.message +
-            "</span>";
-
-    }
-
-}
-
-
-start();
-
-</script>
-
+    player.addEventListener("ended", () => {
+      if (tracks.length) {
+        playTrack((currentIndex + 1) % tracks.length);
+      }
+    });
+
+    loadTracks();
+  </script>
 </body>
 </html>
