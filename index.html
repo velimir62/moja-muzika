@@ -4,16 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Moja muzika</title>
+
   <style>
     body {
       max-width: 700px;
       margin: 30px auto;
       padding: 0 16px;
-      font: 16px Arial, sans-serif;
+      font-family: Arial, sans-serif;
       color: #222;
     }
-
-    h1 { margin-bottom: 18px; }
 
     input[type="search"] {
       box-sizing: border-box;
@@ -36,15 +35,15 @@
       cursor: pointer;
     }
 
-    #nowPlaying, #status {
+    audio {
+      display: block;
+      width: 100%;
       margin: 12px 0;
-      overflow-wrap: anywhere;
     }
 
-    audio { width: 100%; }
-
-    #trackList {
-      padding-left: 28px;
+    #status, #nowPlaying {
+      margin: 12px 0;
+      overflow-wrap: anywhere;
     }
 
     #trackList li {
@@ -58,13 +57,14 @@
     }
   </style>
 </head>
+
 <body>
   <h1>Moja muzika</h1>
 
   <input id="search" type="search" placeholder="Pretraži pesme…">
 
-  <div id="status">Učitavam pesme…</div>
-  <div id="nowPlaying">Nijedna pesma nije izabrana</div>
+  <p id="status">Učitavam pesme…</p>
+  <p id="nowPlaying">Nijedna pesma nije izabrana.</p>
 
   <audio id="audio" controls preload="metadata"></audio>
 
@@ -72,7 +72,7 @@
     <button id="previous" type="button">⏮ Prethodna</button>
     <button id="playPause" type="button">▶ Pusti</button>
     <button id="next" type="button">Sledeća ⏭</button>
-    <button id="shuffle" type="button" aria-pressed="false">🔀 Nasumično: isključeno</button>
+    <button id="shuffle" type="button">🔀 Nasumično: isključeno</button>
   </div>
 
   <ol id="trackList"></ol>
@@ -104,48 +104,48 @@
       const query = search.value.trim().toLocaleLowerCase();
       trackList.replaceChildren();
 
-      tracks.forEach((name, index) => {
-        if (!name.toLocaleLowerCase().includes(query)) return;
+      tracks.forEach((track, index) => {
+        if (!track.name.toLocaleLowerCase().includes(query)) return;
 
         const item = document.createElement("li");
-        item.textContent = name;
-        item.dataset.index = index;
+        item.textContent = track.name;
 
-        if (index === currentIndex) item.classList.add("active");
+        if (index === currentIndex) {
+          item.classList.add("active");
+        }
 
         item.addEventListener("click", () => playTrack(index));
         trackList.appendChild(item);
       });
     }
 
-    function getTrackUrl(name) {
-      return `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${encodeURIComponent(name)}`;
-    }
-
     async function playTrack(index) {
-      if (!tracks.length) return;
+      if (tracks.length === 0) return;
 
       currentIndex = (index + tracks.length) % tracks.length;
-      const name = tracks[currentIndex];
+      const track = tracks[currentIndex];
 
-      audio.src = getTrackUrl(name);
-      nowPlaying.textContent = "Pesma: " + name;
+      audio.src = track.url;
+      audio.load();
+
+      nowPlaying.textContent = "Pesma: " + track.name;
       status.textContent = "";
       renderTracks();
 
       try {
         await audio.play();
-        playPauseButton.textContent = "⏸ Pauza";
       } catch (error) {
-        playPauseButton.textContent = "▶ Pusti";
-        status.textContent = "Pritisni „Pusti” da pokreneš pesmu.";
+        status.textContent =
+          "Pesma je učitana. Pritisni dugme „Pusti” da pokreneš reprodukciju.";
+        console.error("Greška pri pokretanju pesme:", error);
       }
     }
 
     function playNext() {
-      if (!tracks.length) return;
+      if (tracks.length === 0) return;
 
       let nextIndex;
+
       if (shuffleOn && tracks.length > 1) {
         do {
           nextIndex = Math.floor(Math.random() * tracks.length);
@@ -165,54 +165,63 @@
         const response = await fetch(apiUrl);
 
         if (!response.ok) {
-          throw new Error(`GitHub odgovor: ${response.status}`);
+          throw new Error(`GitHub API odgovor: ${response.status}`);
         }
 
         const files = await response.json();
 
         tracks = files
-          .filter(file => file.type === "file" && /\.mp3$/i.test(file.name))
-          .map(file => file.name)
-          .sort(sortNumerically);
+          .filter(file =>
+            file.type === "file" &&
+            /\.mp3$/i.test(file.name) &&
+            file.download_url
+          )
+          .map(file => ({
+            name: file.name,
+            url: file.download_url
+          }))
+          .sort((a, b) => sortNumerically(a.name, b.name));
 
-        if (!tracks.length) {
-          status.textContent = "Nisam pronašao MP3 fajlove u glavnom folderu repozitorijuma.";
+        if (tracks.length === 0) {
+          status.textContent =
+            "Nisu pronađeni MP3 fajlovi u glavnom folderu repozitorijuma.";
           return;
         }
 
         status.textContent = `Učitano pesama: ${tracks.length}`;
-        renderTracks();
-
-        // Učitava prvu pesmu, ali ne pokreće je automatski.
         currentIndex = 0;
-        audio.src = getTrackUrl(tracks[currentIndex]);
-        nowPlaying.textContent = "Izabrana pesma: " + tracks[currentIndex];
+        audio.src = tracks[0].url;
+        nowPlaying.textContent = "Izabrana pesma: " + tracks[0].name;
         renderTracks();
       } catch (error) {
         status.textContent =
-          "Nisam uspeo da učitam listu pesama. Proveri da li su MP3 fajlovi u glavnom folderu i da li je repozitorijum javan.";
-        console.error(error);
+          "Lista pesama nije mogla da se učita. Proveri da li je repozitorijum javan.";
+        console.error("Greška pri učitavanju liste:", error);
       }
     }
 
     document.getElementById("previous").addEventListener("click", () => {
-      if (tracks.length) playTrack(currentIndex <= 0 ? tracks.length - 1 : currentIndex - 1);
+      if (tracks.length === 0) return;
+
+      const previousIndex =
+        currentIndex <= 0 ? tracks.length - 1 : currentIndex - 1;
+
+      playTrack(previousIndex);
     });
 
     document.getElementById("next").addEventListener("click", playNext);
 
     playPauseButton.addEventListener("click", async () => {
-      if (!tracks.length) return;
+      if (tracks.length === 0) return;
 
-      if (!audio.src) {
-        await playTrack(currentIndex < 0 ? 0 : currentIndex);
-      } else if (audio.paused) {
+      if (audio.paused) {
         try {
           await audio.play();
-          playPauseButton.textContent = "⏸ Pauza";
           status.textContent = "";
         } catch (error) {
-          status.textContent = "Pesma ne može da se pusti. Proveri da li se MP3 fajl otvara direktno.";
+          status.textContent =
+            "Reprodukcija nije uspela. Pogledaj grešku u konzoli pregledača.";
+          console.error("Greška pri reprodukciji:", error);
         }
       } else {
         audio.pause();
@@ -221,24 +230,28 @@
 
     shuffleButton.addEventListener("click", () => {
       shuffleOn = !shuffleOn;
-      shuffleButton.setAttribute("aria-pressed", String(shuffleOn));
       shuffleButton.textContent = shuffleOn
         ? "🔀 Nasumično: uključeno"
         : "🔀 Nasumično: isključeno";
     });
 
     search.addEventListener("input", renderTracks);
-
     audio.addEventListener("ended", playNext);
+
     audio.addEventListener("play", () => {
       playPauseButton.textContent = "⏸ Pauza";
     });
+
     audio.addEventListener("pause", () => {
       playPauseButton.textContent = "▶ Pusti";
     });
+
     audio.addEventListener("error", () => {
-      status.textContent = "Greška pri učitavanju pesme: " +
-        (tracks[currentIndex] || "proveri MP3 fajl i njegov naziv");
+      const trackName =
+        currentIndex >= 0 ? tracks[currentIndex].name : "pesma";
+
+      status.textContent = `Greška pri učitavanju: ${trackName}`;
+      console.error("Audio greška:", audio.error);
     });
 
     loadTracks();
