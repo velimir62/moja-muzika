@@ -118,10 +118,10 @@ input {
   <ul id="trackList"></ul>
 
   <section id="songLikes" aria-live="polite">
-    <h2>👍 Moji lajkovi</h2>
-    <p id="likeHelp">Izaberi pjesmu pa označi da ti se sviđa.</p>
+    <h2>👍 Lajkovi pjesama</h2>
+    <p id="likeHelp">Izaberi pjesmu i klikni „Sviđa mi se“.</p>
     <button id="likeButton" type="button" disabled>👍 Sviđa mi se</button>
-    <p id="likeCount">Tvoj lajk nije označen.</p>
+    <p id="likeCount">Učitavam broj lajkova...</p>
   </section>
 </main>
 
@@ -142,8 +142,11 @@ const shuffleButton = document.getElementById("shuffle");
 const likeButton = document.getElementById("likeButton");
 const likeHelp = document.getElementById("likeHelp");
 const likeCount = document.getElementById("likeCount");
-const LIKES_KEY = "veljo-radio-personal-likes-v1";
+const LIKES_KEY = "veljo-radio-liked-songs-v1";
+const SUPABASE_URL = "https://svggmklqmcwwbtsyqpxx.supabase.co";
+const SUPABASE_KEY = "sb_publishable_dSsCZSzcNDiXSbB9WagKHg_Y6UOr3K7";
 let selectedLikeKey = "";
+let sharedLikeCount = 0;
 
 let tracks = [];
 let currentIndex = -1;
@@ -177,18 +180,48 @@ function getMyLikes() {
   }
 }
 
-function updateSongLikes(track) {
-  if (!track) return;
-  selectedLikeKey = track.path;
-  likeHelp.textContent = "Pjesma: " + titleOf(track);
-  likeButton.disabled = false;
+function stableSongKey(track) {
+  return titleOf(track).trim().toLocaleLowerCase();
+}
+
+async function loadSharedLikeCount(songKey) {
+  const url = SUPABASE_URL + "/rest/v1/song_likes?select=like_count&song_key=eq." +
+    encodeURIComponent(songKey);
+  const response = await fetch(url, {
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: "Bearer " + SUPABASE_KEY
+    },
+    cache: "no-store"
+  });
+  if (!response.ok) throw new Error("HTTP " + response.status);
+  const rows = await response.json();
+  return rows.length ? Number(rows[0].like_count) || 0 : 0;
+}
+
+function renderLikeState() {
   const liked = Boolean(getMyLikes()[selectedLikeKey]);
   likeButton.classList.toggle("liked", liked);
   likeButton.setAttribute("aria-pressed", String(liked));
-  likeButton.textContent = liked ? "💚 Sviđa mi se" : "👍 Sviđa mi se";
-  likeCount.textContent = liked
-    ? "Označio si ovu pjesmu kao omiljenu na ovom uređaju."
-    : "Još nisi označio ovu pjesmu.";
+  likeButton.textContent = liked ? "💚 Već si lajkovao" : "👍 Sviđa mi se";
+  likeCount.textContent = "Ukupno lajkova: " + sharedLikeCount;
+}
+
+async function updateSongLikes(track) {
+  if (!track) return;
+  selectedLikeKey = stableSongKey(track);
+  likeHelp.textContent = "Pjesma: " + titleOf(track);
+  likeButton.disabled = true;
+  likeCount.textContent = "Učitavam zajedničke lajkove...";
+  try {
+    sharedLikeCount = await loadSharedLikeCount(selectedLikeKey);
+    renderLikeState();
+    likeButton.disabled = Boolean(getMyLikes()[selectedLikeKey]);
+  } catch (error) {
+    console.error("Greška pri učitavanju lajkova:", error);
+    likeCount.textContent = "Ne mogu učitati lajkove. Provjeri Supabase SQL podešavanje.";
+    likeButton.disabled = false;
+  }
 }
 
 function renderTracks() {
@@ -575,22 +608,32 @@ shuffleButton.addEventListener("click", () => {
   shuffleButton.setAttribute("aria-pressed", String(shuffle));
 });
 
-likeButton.addEventListener("click", () => {
-  if (!selectedLikeKey) return;
+likeButton.addEventListener("click", async () => {
+  if (!selectedLikeKey || likeButton.disabled) return;
   const likes = getMyLikes();
-  if (likes[selectedLikeKey]) {
-    delete likes[selectedLikeKey];
-  } else {
-    likes[selectedLikeKey] = true;
-  }
+  if (likes[selectedLikeKey]) return;
+  likeButton.disabled = true;
+  likeCount.textContent = "Bilježim lajk...";
   try {
+    const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/add_song_like", {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: "Bearer " + SUPABASE_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ p_song_key: selectedLikeKey })
+    });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    sharedLikeCount = Number(await response.json()) || 0;
+    likes[selectedLikeKey] = true;
     localStorage.setItem(LIKES_KEY, JSON.stringify(likes));
-  } catch {
-    likeCount.textContent = "Pregledač nije dozvolio čuvanje lajka.";
-    return;
+    renderLikeState();
+  } catch (error) {
+    console.error("Greška pri čuvanju lajka:", error);
+    likeCount.textContent = "Lajk nije sačuvan. Provjeri da li je SQL upit uspješno izvršen.";
+    likeButton.disabled = false;
   }
-  const track = tracks.find(item => item.path === selectedLikeKey);
-  if (track) updateSongLikes(track);
 });
 
 search.addEventListener("input", renderTracks);
