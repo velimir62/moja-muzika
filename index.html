@@ -472,7 +472,8 @@ async function loadTracks() {
         order: "023"
       },
       {
-        name: "112 121 ми.mp3",
+        // Jedna stavka za broj 112: prikazuj željeni naziv, a pusti postojeći snimak.
+        name: "112 ми.mp3",
         path: "121 ми.mp3",
         url: "https://raw.githubusercontent.com/" + OWNER + "/" + REPO +
           "/master/" + encodeGitHubPath("121 ми.mp3"),
@@ -486,6 +487,7 @@ async function loadTracks() {
       return name.toLocaleLowerCase() !== "m.mp3" &&
         name !== "023 Milenko i Rada.mp3" &&
         name !== "112 Ту је сада једна екипа,.mp3" &&
+        name !== "112 ми.mp3" &&
         name !== "lj.mp3" &&
         name !== "121 ми.mp3";
     }).map(file => {
