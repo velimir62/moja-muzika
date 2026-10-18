@@ -53,6 +53,16 @@ input {
   overflow-y: auto;
 }
 #trackList li { margin: 6px 0; }
+#comments { margin-top:24px; padding-top:16px; border-top:1px solid #465777; }
+#comments h2 { font-size:20px; text-align:center; }
+#commentForm label { display:block; color:#bdcbe0; margin-top:10px; }
+#commentForm textarea { width:100%; min-height:100px; resize:vertical; padding:13px; margin:8px 0; border:1px solid #465777; border-radius:10px; background:#101a2d; color:white; font:16px Arial,sans-serif; }
+#commentStatus { color:#bdcbe0; text-align:center; overflow-wrap:anywhere; }
+#approvedComments { list-style:none; padding:0; }
+#approvedComments li { background:#101a2d; padding:12px; border-radius:10px; margin:8px 0; overflow-wrap:anywhere; }
+.comment-name { font-weight:bold; color:#8ee6ae; }
+.comment-date { color:#9aaac1; font-size:12px; margin-left:8px; }
+.comment-text { white-space:pre-wrap; margin-top:8px; }
 #songLikes { margin-top: 24px; padding-top: 16px; border-top: 1px solid #465777; text-align: center; }
 #songLikes h2 { font-size: 20px; }
 #likeButton.liked { background: #1db954; color: #071b0e; }
@@ -123,6 +133,20 @@ input {
     <button id="likeButton" type="button" disabled>👍 Sviđa mi se</button>
     <p id="likeCount">Učitavam broj lajkova...</p>
   </section>
+
+  <section id="comments">
+    <h2>💬 Komentari</h2>
+    <p id="commentHelp" class="subtitle">Izaberi pjesmu da vidiš komentare i ostaviš svoj. Komentari se prikazuju tek nakon odobrenja.</p>
+    <form id="commentForm">
+      <label for="commentNickname">Tvoje ime ili nadimak</label>
+      <input id="commentNickname" name="nickname" maxlength="40" required autocomplete="nickname" placeholder="Nadimak">
+      <label for="commentText">Komentar</label>
+      <textarea id="commentText" name="comment" maxlength="1000" required placeholder="Napiši komentar..."></textarea>
+      <button id="commentSubmit" type="submit" disabled>📨 Pošalji komentar</button>
+    </form>
+    <p id="commentStatus" role="status" aria-live="polite">Izaberi pjesmu sa liste.</p>
+    <ul id="approvedComments"></ul>
+  </section>
 </main>
 
 <script>
@@ -146,6 +170,110 @@ const LIKES_KEY = "veljo-radio-liked-songs-v1";
 const SUPABASE_URL = "https://svggmklqmcwwbtsyqpxx.supabase.co";
 const SUPABASE_KEY = "sb_publishable_dSsCZSzcNDiXSbB9WagKHg_Y6UOr3K7";
 let selectedLikeKey = "";
+
+const commentForm = document.getElementById("commentForm");
+const commentNickname = document.getElementById("commentNickname");
+const commentText = document.getElementById("commentText");
+const commentSubmit = document.getElementById("commentSubmit");
+const commentStatus = document.getElementById("commentStatus");
+const approvedComments = document.getElementById("approvedComments");
+let selectedCommentKey = "";
+
+async function loadApprovedComments(songKey) {
+  approvedComments.replaceChildren();
+  if (!songKey) {
+    commentStatus.textContent = "Izaberi pjesmu sa liste.";
+    commentSubmit.disabled = true;
+    return;
+  }
+  commentStatus.textContent = "Učitavam odobrene komentare...";
+  commentSubmit.disabled = false;
+  try {
+    const params = new URLSearchParams({
+      select: "id,song_key,nickname,comment,created_at",
+      song_key: "eq." + songKey,
+      approved: "eq.true",
+      order: "created_at.desc"
+    });
+    const response = await fetch(SUPABASE_URL + "/rest/v1/song_comments?" + params.toString(), {
+      headers: { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY },
+      cache: "no-store"
+    });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const rows = await response.json();
+    approvedComments.replaceChildren();
+    rows.forEach(item => {
+      const li = document.createElement("li");
+      const heading = document.createElement("div");
+      const name = document.createElement("span");
+      name.className = "comment-name";
+      name.textContent = item.nickname;
+      heading.appendChild(name);
+      if (item.created_at) {
+        const date = document.createElement("span");
+        date.className = "comment-date";
+        const parsed = new Date(item.created_at);
+        date.textContent = Number.isNaN(parsed.getTime()) ? "" : parsed.toLocaleDateString();
+        heading.appendChild(date);
+      }
+      const body = document.createElement("div");
+      body.className = "comment-text";
+      body.textContent = item.comment;
+      li.append(heading, body);
+      approvedComments.appendChild(li);
+    });
+    commentStatus.textContent = rows.length ? "Odobreni komentari za: " + titleOf(tracks[currentIndex]) : "Još nema odobrenih komentara za ovu pjesmu.";
+  } catch (error) {
+    console.error("Greška pri učitavanju komentara:", error);
+    commentStatus.textContent = "Ne mogu učitati komentare. Provjeri Supabase podešavanja.";
+  }
+}
+
+commentForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const nickname = commentNickname.value.trim();
+  const comment = commentText.value.trim();
+  if (!selectedCommentKey || !nickname || !comment) {
+    commentStatus.textContent = "Izaberi pjesmu i upiši nadimak i komentar.";
+    return;
+  }
+  if (nickname.length > 40 || comment.length > 1000) {
+    commentStatus.textContent = "Nadimak može imati do 40, a komentar do 1000 znakova.";
+    return;
+  }
+  commentSubmit.disabled = true;
+  commentStatus.textContent = "Šaljem komentar na odobrenje...";
+  try {
+    const response = await fetch(SUPABASE_URL + "/rest/v1/song_comments", {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: "Bearer " + SUPABASE_KEY,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal"
+      },
+      body: JSON.stringify({
+        song_key: selectedCommentKey,
+        nickname,
+        comment,
+        approved: false
+      })
+    });
+    if (!response.ok) {
+      const details = await response.text();
+      throw new Error("HTTP " + response.status + " " + details);
+    }
+    commentText.value = "";
+    commentStatus.textContent = "Hvala! Komentar je poslan i čeka tvoje odobrenje.";
+  } catch (error) {
+    console.error("Greška pri slanju komentara:", error);
+    commentStatus.textContent = "Komentar nije poslan. Provjeri Supabase SQL i pravila.";
+  } finally {
+    commentSubmit.disabled = false;
+  }
+});
+
+
 let sharedLikeCount = 0;
 
 let tracks = [];
@@ -410,6 +538,8 @@ async function playTrack(index) {
     renderTracks();
     nowPlaying.textContent = "⚠️ " + track.name;
     updateSongLikes(track);
+    selectedCommentKey = stableSongKey(track);
+    loadApprovedComments(selectedCommentKey);
     say("Za ovu pjesmu nema ispravnog snimka ni u starijoj verziji GitHuba.");
     busy = false;
     return;
@@ -421,6 +551,8 @@ async function playTrack(index) {
 
   nowPlaying.textContent = "🎵 " + track.name;
   updateSongLikes(track);
+  selectedCommentKey = stableSongKey(track);
+  loadApprovedComments(selectedCommentKey);
   renderTracks();
   playButton.textContent = "▶ Pusti";
   say("Učitavam: " + track.path);
