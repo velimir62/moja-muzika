@@ -141,6 +141,13 @@ function say(text) {
   status.textContent = text;
 }
 
+// Encode each path segment for GitHub Raw, keeping commas readable in filenames.
+function encodeGitHubPath(path) {
+  return path.split("/").map(part =>
+    encodeURIComponent(part).replace(/%2C/gi, ",")
+  ).join("/");
+}
+
 function titleOf(track) {
   return track.name.replace(/\.mp3$/i, "");
 }
@@ -253,7 +260,7 @@ async function loadTracks() {
     );
     adUrl = adFile && adFile.size > 1000
       ? "https://raw.githubusercontent.com/" + OWNER + "/" + REPO +
-        "/master/" + adFile.path.split("/").map(encodeURIComponent).join("/")
+        "/master/" + encodeGitHubPath(adFile.path)
       : "";
 
     tracks = currentFiles.filter(file =>
@@ -267,7 +274,7 @@ async function loadTracks() {
         url: source ? "https://raw.githubusercontent.com/" +
           OWNER + "/" + REPO + "/" +
           (file.size > 1000 ? "master" : "40ef727e4eb93f9ce26521807134fc29c254c536") + "/" +
-          source.path.split("/").map(encodeURIComponent).join("/") : "",
+          encodeGitHubPath(source.path) : "",
         available: Boolean(source),
         order: (file.path.match(/^(\d{3})\s/) || [null, "999"])[1]
       };
