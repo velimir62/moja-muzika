@@ -53,6 +53,10 @@ input {
   overflow-y: auto;
 }
 #trackList li { margin: 6px 0; }
+#songComments { margin-top: 24px; padding-top: 16px; border-top: 1px solid #465777; }
+#songComments h2 { font-size: 20px; text-align: center; }
+#commentsHelp { color: #bdcbe0; text-align: center; font-size: 14px; }
+#comments { min-height: 100px; }
 .track {
   width: 100%; text-align: left;
   overflow-wrap: anywhere;
@@ -112,6 +116,12 @@ input {
 
   <input id="search" type="search" placeholder="🔎 Traži pjesmu...">
   <ul id="trackList"></ul>
+
+  <section id="songComments" aria-live="polite">
+    <h2>👍 Lajkovi i komentari za pjesmu</h2>
+    <p id="commentsHelp">Izaberi pjesmu da ostaviš lajk ili komentar.</p>
+    <div id="comments"></div>
+  </section>
 </main>
 
 <script>
@@ -128,6 +138,9 @@ const trackList = document.getElementById("trackList");
 const search = document.getElementById("search");
 const playButton = document.getElementById("playPause");
 const shuffleButton = document.getElementById("shuffle");
+const commentsHelp = document.getElementById("commentsHelp");
+const commentsBox = document.getElementById("comments");
+let commentsTrackKey = "";
 
 let tracks = [];
 let currentIndex = -1;
@@ -150,6 +163,26 @@ function encodeGitHubPath(path) {
 
 function titleOf(track) {
   return track.name.replace(/\.mp3$/i, "");
+}
+
+function updateSongComments(track) {
+  if (!track) return;
+  const title = titleOf(track).trim();
+  const term = "Veljo Radio pjesma: " + title;
+  if (term === commentsTrackKey) return;
+  commentsTrackKey = term;
+  commentsHelp.textContent = "Lajkovi i komentari za: " + title +
+    ". Za pisanje komentara možda će biti potrebno prijaviti se na GitHub.";
+  commentsBox.replaceChildren();
+  const script = document.createElement("script");
+  script.src = "https://utteranc.es/client.js";
+  script.async = true;
+  script.crossOrigin = "anonymous";
+  script.setAttribute("repo", "velimir62/moja-muzika");
+  script.setAttribute("issue-term", term);
+  script.setAttribute("label", "pjesma");
+  script.setAttribute("theme", "github-dark");
+  commentsBox.appendChild(script);
 }
 
 function renderTracks() {
@@ -337,6 +370,7 @@ async function playTrack(index) {
   if (!track.available || !track.url) {
     renderTracks();
     nowPlaying.textContent = "⚠️ " + track.name;
+    updateSongComments(track);
     say("Za ovu pjesmu nema ispravnog snimka ni u starijoj verziji GitHuba.");
     busy = false;
     return;
@@ -347,6 +381,7 @@ async function playTrack(index) {
   audio.load();
 
   nowPlaying.textContent = "🎵 " + track.name;
+  updateSongComments(track);
   renderTracks();
   playButton.textContent = "▶ Pusti";
   say("Učitavam: " + track.path);
