@@ -17,6 +17,9 @@ body {
 }
 h1, .subtitle { text-align: center; }
 .subtitle { color: #bdcbe0; }
+.site-link { text-align: center; margin: 12px 0 18px; }
+.site-link a { display: inline-block; padding: 10px 16px; border-radius: 10px; background: #30415e; color: white; text-decoration: none; }
+.site-link a:hover { background: #1db954; color: #071b0e; }
 #nowPlaying {
   padding: 15px; border-radius: 12px;
   background: #101a2d; text-align: center;
@@ -64,6 +67,7 @@ input {
 <main class="container">
   <h1>🎵 Veljo Radio</h1>
   <p class="subtitle">Tvoja muzika — radio bez kraja</p>
+  <p class="site-link"><a href="https://velimir62.github.io/veljo-video-muzika/">🎬 Idi na Video</a></p>
 
   <div id="nowPlaying">Učitavam radio...</div>
   <audio id="audio" controls preload="none"></audio>
