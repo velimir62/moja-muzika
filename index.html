@@ -268,6 +268,7 @@ async function loadTracks() {
 async function playTrack(index) {
   if (busy || !tracks.length) return;
 
+  isPlayingAd = false;
   busy = true;
   currentIndex = (index + tracks.length) % tracks.length;
   const track = tracks[currentIndex];
@@ -341,27 +342,55 @@ async function playTrack(index) {
   }
 }
 
-function playAdvertisement() {
+async function playAdvertisement() {
   if (!adUrl) {
-    say("Reklama m.mp3 nije pronađena; nastavljam radio.");
+    isPlayingAd = false;
+    say("Reklama M.mp3 nije pronađena; nastavljam radio.");
     nextTrack();
     return;
   }
+
   isPlayingAd = true;
   audio.pause();
-  audio.src = adUrl;
+  audio.removeAttribute("src");
   audio.load();
-  nowPlaying.textContent = "📢 Reklama";
+  nowPlaying.textContent = "📢 Reklama M.mp3";
   renderTracks();
-  say("📢 Pušta se reklama m.mp3...");
-  audio.play().then(() => {
-    playButton.textContent = "⏸ Pauza";
-  }).catch(error => {
+  say("📢 Učitavam reklamu M.mp3...");
+
+  try {
+    await new Promise((resolve, reject) => {
+      let settled = false;
+      const timer = setTimeout(() => finish(reject, new Error("Reklama se nije učitala na vrijeme.")), 15000);
+
+      function cleanup() {
+        clearTimeout(timer);
+        audio.removeEventListener("canplay", onReady);
+        audio.removeEventListener("error", onError);
+      }
+      function finish(callback, value) {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        callback(value);
+      }
+      function onReady() { finish(resolve); }
+      function onError() { finish(reject, new Error("Ne mogu učitati M.mp3.")); }
+
+      audio.addEventListener("canplay", onReady);
+      audio.addEventListener("error", onError);
+      audio.src = adUrl;
+      audio.load();
+    });
+
+    await audio.play();
+    say("📢 Sada svira reklama M.mp3.");
+  } catch (error) {
     console.error(error);
     isPlayingAd = false;
-    say("Reklama nije mogla da se pusti; nastavljam radio.");
+    say("Greška pri puštanju reklame M.mp3; nastavljam radio.");
     nextTrack();
-  });
+  }
 }
 
 function nextTrack() {
@@ -448,6 +477,7 @@ search.addEventListener("input", renderTracks);
 audio.addEventListener("ended", () => {
   if (isPlayingAd) {
     isPlayingAd = false;
+    say("Reklama završena; nastavljam sljedeću pjesmu.");
     nextTrack();
     return;
   }
@@ -457,6 +487,7 @@ audio.addEventListener("ended", () => {
     completedSongsSinceAd = 0;
     playAdvertisement();
   } else {
+    say("Pjesma završena (" + completedSongsSinceAd + "/2); nastavljam radio.");
     nextTrack();
   }
 });
