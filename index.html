@@ -53,10 +53,10 @@ input {
   overflow-y: auto;
 }
 #trackList li { margin: 6px 0; }
-#songComments { margin-top: 24px; padding-top: 16px; border-top: 1px solid #465777; }
-#songComments h2 { font-size: 20px; text-align: center; }
-#commentsHelp { color: #bdcbe0; text-align: center; font-size: 14px; }
-#comments { min-height: 100px; }
+#songLikes { margin-top: 24px; padding-top: 16px; border-top: 1px solid #465777; text-align: center; }
+#songLikes h2 { font-size: 20px; }
+#likeButton.liked { background: #1db954; color: #071b0e; }
+#likeHelp { color: #bdcbe0; font-size: 14px; }
 .track {
   width: 100%; text-align: left;
   overflow-wrap: anywhere;
@@ -117,10 +117,11 @@ input {
   <input id="search" type="search" placeholder="🔎 Traži pjesmu...">
   <ul id="trackList"></ul>
 
-  <section id="songComments" aria-live="polite">
-    <h2>👍 Lajkovi i komentari za pjesmu</h2>
-    <p id="commentsHelp">Izaberi pjesmu da ostaviš lajk ili komentar.</p>
-    <div id="comments"></div>
+  <section id="songLikes" aria-live="polite">
+    <h2>👍 Moji lajkovi</h2>
+    <p id="likeHelp">Izaberi pjesmu pa označi da ti se sviđa.</p>
+    <button id="likeButton" type="button" disabled>👍 Sviđa mi se</button>
+    <p id="likeCount">Tvoj lajk nije označen.</p>
   </section>
 </main>
 
@@ -138,9 +139,11 @@ const trackList = document.getElementById("trackList");
 const search = document.getElementById("search");
 const playButton = document.getElementById("playPause");
 const shuffleButton = document.getElementById("shuffle");
-const commentsHelp = document.getElementById("commentsHelp");
-const commentsBox = document.getElementById("comments");
-let commentsTrackKey = "";
+const likeButton = document.getElementById("likeButton");
+const likeHelp = document.getElementById("likeHelp");
+const likeCount = document.getElementById("likeCount");
+const LIKES_KEY = "veljo-radio-personal-likes-v1";
+let selectedLikeKey = "";
 
 let tracks = [];
 let currentIndex = -1;
@@ -165,23 +168,27 @@ function titleOf(track) {
   return track.name.replace(/\.mp3$/i, "");
 }
 
-function updateSongComments(track) {
+function getMyLikes() {
+  try {
+    const value = JSON.parse(localStorage.getItem(LIKES_KEY) || "{}");
+    return value && typeof value === "object" ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+function updateSongLikes(track) {
   if (!track) return;
-  const title = titleOf(track).trim();
-  const term = "Veljo Radio pjesma: " + title;
-  if (term === commentsTrackKey) return;
-  commentsTrackKey = term;
-  commentsHelp.textContent = "Lajkovi i komentari za: " + title +
-    ". Za pisanje komentara možda će biti potrebno prijaviti se na GitHub.";
-  commentsBox.replaceChildren();
-  const script = document.createElement("script");
-  script.src = "https://utteranc.es/client.js";
-  script.async = true;
-  script.crossOrigin = "anonymous";
-  script.setAttribute("repo", "velimir62/moja-muzika");
-  script.setAttribute("issue-term", term);
-  script.setAttribute("theme", "github-dark");
-  commentsBox.appendChild(script);
+  selectedLikeKey = track.path;
+  likeHelp.textContent = "Pjesma: " + titleOf(track);
+  likeButton.disabled = false;
+  const liked = Boolean(getMyLikes()[selectedLikeKey]);
+  likeButton.classList.toggle("liked", liked);
+  likeButton.setAttribute("aria-pressed", String(liked));
+  likeButton.textContent = liked ? "💚 Sviđa mi se" : "👍 Sviđa mi se";
+  likeCount.textContent = liked
+    ? "Označio si ovu pjesmu kao omiljenu na ovom uređaju."
+    : "Još nisi označio ovu pjesmu.";
 }
 
 function renderTracks() {
@@ -369,7 +376,7 @@ async function playTrack(index) {
   if (!track.available || !track.url) {
     renderTracks();
     nowPlaying.textContent = "⚠️ " + track.name;
-    updateSongComments(track);
+    updateSongLikes(track);
     say("Za ovu pjesmu nema ispravnog snimka ni u starijoj verziji GitHuba.");
     busy = false;
     return;
@@ -380,7 +387,7 @@ async function playTrack(index) {
   audio.load();
 
   nowPlaying.textContent = "🎵 " + track.name;
-  updateSongComments(track);
+  updateSongLikes(track);
   renderTracks();
   playButton.textContent = "▶ Pusti";
   say("Učitavam: " + track.path);
@@ -566,6 +573,24 @@ shuffleButton.addEventListener("click", () => {
   shuffleButton.textContent =
     shuffle ? "🔀 Nasumično: DA" : "🔀 Nasumično: NE";
   shuffleButton.setAttribute("aria-pressed", String(shuffle));
+});
+
+likeButton.addEventListener("click", () => {
+  if (!selectedLikeKey) return;
+  const likes = getMyLikes();
+  if (likes[selectedLikeKey]) {
+    delete likes[selectedLikeKey];
+  } else {
+    likes[selectedLikeKey] = true;
+  }
+  try {
+    localStorage.setItem(LIKES_KEY, JSON.stringify(likes));
+  } catch {
+    likeCount.textContent = "Pregledač nije dozvolio čuvanje lajka.";
+    return;
+  }
+  const track = tracks.find(item => item.path === selectedLikeKey);
+  if (track) updateSongLikes(track);
 });
 
 search.addEventListener("input", renderTracks);
