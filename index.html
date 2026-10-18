@@ -102,6 +102,9 @@ let tracks = [];
 let currentIndex = -1;
 let shuffle = false;
 let busy = false;
+let adUrl = "";
+let isPlayingAd = false;
+let completedSongsSinceAd = 0;
 
 function say(text) {
   status.textContent = text;
@@ -214,7 +217,17 @@ async function loadTracks() {
       return candidates.length ? candidates[0].candidate : null;
     }
 
-    tracks = currentFiles.map(file => {
+    const adFile = currentFiles.find(file =>
+      file.path.split("/").pop().toLocaleLowerCase() === "m.mp3"
+    );
+    adUrl = adFile && adFile.size > 1000
+      ? "https://raw.githubusercontent.com/" + OWNER + "/" + REPO +
+        "/master/" + adFile.path.split("/").map(encodeURIComponent).join("/")
+      : "";
+
+    tracks = currentFiles.filter(file =>
+      file.path.split("/").pop().toLocaleLowerCase() !== "m.mp3"
+    ).map(file => {
       const archiveMatch = file.size > 1000 ? null : findArchiveMatch(file);
       const source = file.size > 1000 ? file : archiveMatch;
       return {
@@ -242,8 +255,9 @@ async function loadTracks() {
 
     renderTracks();
     const playable = tracks.filter(track => track.available).length;
-    say("Redoslijed 001–121, zatim 2 pjesme bez broja. Dostupno za puštanje: " +
-      playable + " od " + tracks.length + ".");
+    say("Dostupno pjesama: " + playable + " od " + tracks.length +
+      (adUrl ? ". Reklama m.mp3 nakon svake 2 završene pjesme." :
+      ". Upozorenje: m.mp3 reklama nije pronađena ili je prazna."));
     nowPlaying.textContent = "Izaberi pjesmu sa liste.";
   } catch (error) {
     console.error(error);
@@ -327,8 +341,32 @@ async function playTrack(index) {
   }
 }
 
+function playAdvertisement() {
+  if (!adUrl) {
+    say("Reklama m.mp3 nije pronađena; nastavljam radio.");
+    nextTrack();
+    return;
+  }
+  isPlayingAd = true;
+  audio.pause();
+  audio.src = adUrl;
+  audio.load();
+  nowPlaying.textContent = "📢 Reklama";
+  renderTracks();
+  say("📢 Pušta se reklama m.mp3...");
+  audio.play().then(() => {
+    playButton.textContent = "⏸ Pauza";
+  }).catch(error => {
+    console.error(error);
+    isPlayingAd = false;
+    say("Reklama nije mogla da se pusti; nastavljam radio.");
+    nextTrack();
+  });
+}
+
 function nextTrack() {
   if (!tracks.length || busy) return;
+  isPlayingAd = false;
 
   const playableIndexes = tracks
     .map((track, index) => track.available ? index : -1)
@@ -407,7 +445,21 @@ shuffleButton.addEventListener("click", () => {
 
 search.addEventListener("input", renderTracks);
 
-audio.addEventListener("ended", nextTrack);
+audio.addEventListener("ended", () => {
+  if (isPlayingAd) {
+    isPlayingAd = false;
+    nextTrack();
+    return;
+  }
+
+  completedSongsSinceAd++;
+  if (completedSongsSinceAd >= 2) {
+    completedSongsSinceAd = 0;
+    playAdvertisement();
+  } else {
+    nextTrack();
+  }
+});
 
 audio.addEventListener("play", () => {
   playButton.textContent = "⏸ Pauza";
