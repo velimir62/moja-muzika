@@ -263,9 +263,33 @@ async function loadTracks() {
         "/master/" + encodeGitHubPath(adFile.path)
       : "";
 
-    tracks = currentFiles.filter(file =>
-      file.path.split("/").pop().toLocaleLowerCase() !== "m.mp3"
-    ).map(file => {
+    const replacementTracks = [
+      {
+        name: "023 lj.mp3",
+        path: "lj.mp3",
+        url: "https://raw.githubusercontent.com/" + OWNER + "/" + REPO +
+          "/master/" + encodeGitHubPath("lj.mp3"),
+        available: true,
+        order: "023"
+      },
+      {
+        name: "112 121 ми.mp3",
+        path: "121 ми.mp3",
+        url: "https://raw.githubusercontent.com/" + OWNER + "/" + REPO +
+          "/master/" + encodeGitHubPath("121 ми.mp3"),
+        available: true,
+        order: "112"
+      }
+    ];
+
+    tracks = currentFiles.filter(file => {
+      const name = file.path.split("/").pop();
+      return name.toLocaleLowerCase() !== "m.mp3" &&
+        name !== "023 Milenko i Rada.mp3" &&
+        name !== "112 Ту је сада једна екипа,.mp3" &&
+        name !== "lj.mp3" &&
+        name !== "121 ми.mp3";
+    }).map(file => {
       const archiveMatch = file.size > 1000 ? null : findArchiveMatch(file);
       const source = file.size > 1000 ? file : archiveMatch;
       return {
@@ -278,7 +302,7 @@ async function loadTracks() {
         available: Boolean(source),
         order: (file.path.match(/^(\d{3})\s/) || [null, "999"])[1]
       };
-    }).sort((a, b) => {
+    }).concat(replacementTracks).sort((a, b) => {
       const aNumbered = /^\d{3}\s/.test(a.name);
       const bNumbered = /^\d{3}\s/.test(b.name);
       if (aNumbered && bNumbered) return Number(a.order) - Number(b.order);
