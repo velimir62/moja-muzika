@@ -465,6 +465,16 @@ async function loadTracks() {
 
     const replacementTracks = [
       {
+        // Koristi provjereni snimak iz arhive za pjesmu 019.
+        name: "019 Ту је сада једна екипа.mp3",
+        path: "Ту је сада једна екипа,.mp3",
+        url: "https://raw.githubusercontent.com/" + OWNER + "/" + REPO +
+          "/40ef727e4eb93f9ce26521807134fc29c254c536/" +
+          encodeGitHubPath("Ту је сада једна екипа,.mp3"),
+        available: true,
+        order: "019"
+      },
+      {
         name: "023 lj.mp3",
         path: "lj.mp3",
         url: "https://raw.githubusercontent.com/" + OWNER + "/" + REPO +
@@ -486,6 +496,7 @@ async function loadTracks() {
     tracks = currentFiles.filter(file => {
       const name = file.path.split("/").pop();
       return name.toLocaleLowerCase() !== "m.mp3" &&
+        name !== "019 Ту је сада једна екипа.mp3" &&
         name !== "023 Milenko i Rada.mp3" &&
         name !== "112 Ту је сада једна екипа,.mp3" &&
         name !== "112 ми.mp3" &&
