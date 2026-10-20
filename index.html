@@ -466,12 +466,11 @@ async function loadTracks() {
 
     const replacementTracks = [
       {
-        // Koristi provjereni snimak iz arhive za pjesmu 019.
+        // Koristi vraćeni puni MP3 direktno sa glavne grane za pjesmu 019.
         name: "019 Ту је сада једна екипа.mp3",
         path: "Ту је сада једна екипа,.mp3",
         url: "https://raw.githubusercontent.com/" + OWNER + "/" + REPO +
-          "/40ef727e4eb93f9ce26521807134fc29c254c536/" +
-          encodeGitHubPath("Ту је сада једна екипа,.mp3"),
+          "/master/" + encodeGitHubPath("019 Ту је сада једна екипа.mp3"),
         available: true,
         order: "019"
       },
