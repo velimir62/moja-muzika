@@ -443,7 +443,7 @@ async function loadTracks() {
       const wanted = cleanTitle(file.path);
       if (!wanted) return null;
 
-      const candidates = archivedFiles.map(candidate => {
+      const candidates = archivedFiles.filter(candidate => candidate.size > 1000).map(candidate => {
         const title = cleanTitle(candidate.path, true);
         let score = 0;
         if (title === wanted) score = 1000;
