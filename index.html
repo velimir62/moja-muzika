@@ -505,15 +505,23 @@ async function loadTracks() {
         name !== "lj.mp3" &&
         name !== "121 ми.mp3";
     }).map(file => {
-      const archiveMatch = file.size > 1000 ? null : findArchiveMatch(file);
+      // Svaka pjesma dobija i rezervni URL iz arhive, ne samo prazne datoteke.
+      const archiveMatch = findArchiveMatch(file);
       const source = file.size > 1000 ? file : archiveMatch;
+      const archiveUrl = archiveMatch
+        ? "https://raw.githubusercontent.com/" + OWNER + "/" + REPO +
+          "/40ef727e4eb93f9ce26521807134fc29c254c536/" +
+          encodeGitHubPath(archiveMatch.path)
+        : "";
+      const currentUrl = source ? "https://raw.githubusercontent.com/" +
+        OWNER + "/" + REPO + "/" +
+        (file.size > 1000 ? "master" : "40ef727e4eb93f9ce26521807134fc29c254c536") + "/" +
+        encodeGitHubPath(source.path) : "";
       return {
         name: file.path.split("/").pop(),
         path: file.path,
-        url: source ? "https://raw.githubusercontent.com/" +
-          OWNER + "/" + REPO + "/" +
-          (file.size > 1000 ? "master" : "40ef727e4eb93f9ce26521807134fc29c254c536") + "/" +
-          encodeGitHubPath(source.path) : "",
+        url: currentUrl,
+        fallbackUrl: archiveUrl && archiveUrl !== currentUrl ? archiveUrl : "",
         available: Boolean(source),
         order: (file.path.match(/^(\d{3})\s/) || [null, "999"])[1]
       };
@@ -542,6 +550,42 @@ async function loadTracks() {
     nowPlaying.textContent = "Lista pjesama nije učitana.";
   }
 }
+async function loadAndPlayUrl(url, track) {
+  audio.pause();
+  audio.removeAttribute("src");
+  audio.load();
+
+  await new Promise((resolve, reject) => {
+    let finished = false;
+    const timer = setTimeout(() => finish(reject, new Error(
+      "Učitavanje traje predugo: " + track.path
+    )), 20000);
+
+    function cleanup() {
+      clearTimeout(timer);
+      audio.removeEventListener("canplay", onReady);
+      audio.removeEventListener("error", onError);
+    }
+    function finish(callback, value) {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      callback(value);
+    }
+    function onReady() { finish(resolve); }
+    function onError() {
+      finish(reject, new Error("MP3 nije dostupan ili nije podržan: " + track.path));
+    }
+
+    audio.addEventListener("canplay", onReady);
+    audio.addEventListener("error", onError);
+    audio.src = url;
+    audio.load();
+  });
+
+  await audio.play();
+}
+
 async function playTrack(index) {
   if (busy || !tracks.length) return;
 
@@ -573,52 +617,29 @@ async function playTrack(index) {
   say("Učitavam: " + track.path);
 
   try {
-    await new Promise((resolve, reject) => {
-      let finished = false;
-
-      function cleanup() {
-        clearTimeout(timer);
-        audio.removeEventListener("canplay", onReady);
-        audio.removeEventListener("error", onError);
-      }
-
-      function finish(callback, value) {
-        if (finished) return;
-        finished = true;
-        cleanup();
-        callback(value);
-      }
-
-      function onReady() {
-        finish(resolve);
-      }
-
-      function onError() {
-        finish(reject, new Error(
-          "MP3 nije dostupan ili nije podržan. Datoteka: " +
-          track.path + ". Provjeri direktni link: " + track.url
-        ));
-      }
-
-      const timer = setTimeout(() => {
-        finish(reject, new Error(
-          "Učitavanje traje predugo. Provjeri datoteku: " + track.path
-        ));
-      }, 20000);
-
-      audio.addEventListener("canplay", onReady);
-      audio.addEventListener("error", onError);
-
-      audio.src = track.url;
-      audio.load();
-    });
-
-    await audio.play();
+    await loadAndPlayUrl(track.url, track);
     say("Sada svira: " + track.name);
     playButton.textContent = "⏸ Pauza";
-  } catch (error) {
-    console.error(error);
-    say(error.message);
+  } catch (firstError) {
+    // Ako trenutni MP3 ne može da se učita, automatski pokušaj arhivsku kopiju.
+    if (track.fallbackUrl && track.fallbackUrl !== track.url) {
+      try {
+        say("Glavni snimak ne radi; pokušavam rezervnu kopiju za: " + track.name);
+        await loadAndPlayUrl(track.fallbackUrl, track);
+        track.url = track.fallbackUrl;
+        say("Sada svira rezervna kopija: " + track.name);
+        playButton.textContent = "⏸ Pauza";
+        return;
+      } catch (fallbackError) {
+        console.error("Nije uspjela ni rezervna kopija:", fallbackError);
+        firstError = new Error(
+          "Ne rade ni glavni ni rezervni snimak: " + track.name +
+          ". " + fallbackError.message
+        );
+      }
+    }
+    console.error(firstError);
+    say(firstError.message);
     nowPlaying.textContent = "Ne mogu pustiti: " + track.name;
   } finally {
     busy = false;
