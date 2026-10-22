@@ -445,11 +445,12 @@ async function loadTracks() {
 
       const candidates = archivedFiles.filter(candidate => candidate.size > 1000).map(candidate => {
         const title = cleanTitle(candidate.path, true);
-        let score = 0;
-        if (title === wanted) score = 1000;
-        else if (title.length >= 4 && wanted.includes(title)) score = 700 + title.length;
-        else if (wanted.length >= 4 && title.includes(wanted)) score = 700 + wanted.length;
-        return { candidate, score };
+        // Izbjegni slične, ali pogrešne pjesme; prihvati samo isti naslov
+        // ili isti naslov s dodatnim završnim brojem (npr. "jesen" / "jesen1").
+        const sameTitle = title === wanted ||
+          title.replace(/\d+$/, "") === wanted ||
+          wanted.replace(/\d+$/, "") === title;
+        return { candidate, score: sameTitle ? 1000 : 0 };
       }).filter(item => item.score > 0)
         .sort((a, b) => b.score - a.score);
 
